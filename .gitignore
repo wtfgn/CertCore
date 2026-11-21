@@ -1,0 +1,25 @@
+# Lean / Lake build output
+.lake/
+lake-packages/
+
+# Haskell build output (M5)
+dist-newstyle/
+.stack-work/
+*.hi
+*.o
+
+# Python harness (bench/)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Local scratch
+/scratch/

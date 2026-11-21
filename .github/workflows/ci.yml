@@ -1,0 +1,52 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lean:
+    name: Lean build and trust gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install elan
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Cache elan and .lake
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.elan
+            .lake
+          key: ${{ runner.os }}-lean-${{ hashFiles('lean-toolchain', 'lakefile.toml', 'lake-manifest.json') }}
+          restore-keys: |
+            ${{ runner.os }}-lean-
+
+      - name: Build (proofs and checker)
+        run: lake build
+
+      # Roadmap §2 rule 5: main never carries an undocumented unproved goal.
+      # Word-boundary match so `sorryAx` in prose does not trip it.
+      - name: Reject 'sorry' in the trusted tree
+        run: |
+          if grep -rnE '\bsorry\b' lean --include='*.lean'; then
+            echo "::error::Found an unproved goal in lean/. Record deferrals in docs/known-gaps.md instead."
+            exit 1
+          fi
+          echo "No unproved goals in lean/."
+
+      # M3.8 adds `#print axioms check_sound` to the script; M11.4 turns the
+      # footprint into a gate. At M0 this only proves the script elaborates.
+      - name: Audit script elaborates
+        run: lake env lean lean/CertCore/Audit.lean
+
+  # haskell job: added in M5, once the stack/cabal decision is made.

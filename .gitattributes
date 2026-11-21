@@ -1,0 +1,8 @@
+# Keep one canonical line ending in the repository: LF.
+# Windows checkouts get LF too, so CI and local builds see identical bytes and
+# certificate byte counts are comparable across machines.
+* text=auto eol=lf
+
+# Binary fixtures (none yet; the fuzzer corpus lands here)
+*.bin binary
+*.png binary

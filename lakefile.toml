@@ -1,0 +1,19 @@
+# CertCore — Lake build for the trusted Lean side.
+#
+# No Mathlib, by design (project plan D2): the trusted tree depends only on
+# Lean's own toolchain libraries, which keeps the TCB auditable and the build
+# reproducible from a pinned `lean-toolchain`.
+name = "CertCore"
+version = "0.1.0"
+defaultTargets = ["CertCore", "certcore"]
+srcDir = "lean"
+
+# The trusted library: semantics, domains, certificate decoder, checker.
+[[lean_lib]]
+name = "CertCore"
+
+# `certcore check <program.imp> <cert.json>` (M4.5). At M0 this only prints
+# its version; the checker itself does not exist yet.
+[[lean_exe]]
+name = "certcore"
+root = "CertCore.Cli"
