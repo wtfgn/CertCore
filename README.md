@@ -58,6 +58,7 @@ verdict. See [`docs/TCB.md`](docs/TCB.md) and the audit command above.
 
 ## Documents
 
+- [`docs/introduction.md`](docs/introduction.md) — a from-zero introduction to the ideas and jargon
 - [`docs/certcore-project-plan.md`](docs/certcore-project-plan.md) — the *what* and *why*
 - [`docs/certcore-roadmap.md`](docs/certcore-roadmap.md) — the *when*; it governs scheduling
 - [`docs/THEOREMS.md`](docs/THEOREMS.md) — the theorem contract, T1–T10
