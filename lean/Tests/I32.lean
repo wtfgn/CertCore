@@ -56,6 +56,14 @@ def c (n : Int) : I32 := I32.ofIntWrap n
 #guard I32.neg? (c (-2147483648)) = none
 #guard I32.neg? (c 5) = some (c (-5))
 
+/-! ## Division truncates toward zero and fails on zero and on `min / -1`. -/
+
+#guard I32.div? (c (-7)) (c 2) = some (c (-3))
+#guard I32.div? (c 7) (c (-2)) = some (c (-3))
+#guard I32.div? (c (-7)) (c (-2)) = some (c 3)
+#guard I32.div? (c 1) (c 0) = none
+#guard I32.div? (c (-2147483648)) (c (-1)) = none
+
 /-! ## Wrap conversions for values two words wide and just below min. -/
 
 #guard (I32.ofIntWrap 4294967296).val = 0

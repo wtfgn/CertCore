@@ -6,8 +6,9 @@ import CertCore.I32
 Abstract syntax, configurations, the fuel-indexed deterministic small-step
 semantics, and the safety predicate `Safe`.
 
-Status: **syntax and state complete (M1.2–M1.4); semantics pending (M1.5–M1.7)**.
-This module is inside the TCB: a bug here changes what "safe" means (plan §10.1).
+Status: **syntax, state and expression evaluation complete (M1.2–M1.5); command
+semantics pending (M1.6–M1.7)**. This module is inside the TCB: a bug here
+changes what "safe" means (plan §10.1).
 
 Implemented:
 
@@ -22,10 +23,13 @@ Implemented:
   a `Program` carries the constant length of every array.
 * `State` (M1.4) — a total environment `Var → I32` and total memory
   `Arr → Array I32`, with initialisation and pointwise update lemmas.
+* `eval`, `evalB` (M1.5) — expression and condition evaluation to `Option`;
+  `none` for division by zero, `min / -1`, signed overflow and out-of-bounds
+  read. This is where the safety property is defined.
 
 Pending:
 
-* `eval`, `step`, `run`, `Safe` (M1.5–M1.7).
+* `step`, `run`, `Safe` (M1.6–M1.7).
 * `edges` (M1.8), T1 `step_det` (M1.9), T2 `safe_iff` (M1.10).
 
 Decisions that matter later:
@@ -40,6 +44,17 @@ Decisions that matter later:
   — zero divisor and `min / -1` — are fixed by `eval` in M1.5. A separate `div`
   command would duplicate `assign x (div l r)` and give the AST two encodings of
   one program, so it is deliberately not part of `Cmd`.
+* **Division truncates toward zero** (`Int.tdiv`), matching C-family machine
+  arithmetic and x86 `idiv`. Lean's `Int` division is Euclidean (`-7 / 2 = -4`),
+  so it is deliberately not used; the evaluation tests pin `(-7) / 2 = -3`.
+  `min / -1` is an overflow and yields `none`. Division has no wrapping
+  counterpart: a machine divide overflow traps.
+* **Conditions are strict.** `BExp.and` and `BExp.or` evaluate both operands.
+  A short-circuit language would make a partial operation on the right a
+  *conditional* safety obligation ("only if the left is true"), which the
+  checker's per-point safety predicates do not express; strictness keeps every
+  obligation unconditional. This differs from C's `&&`/`||` and is revisited
+  only if the language should match C.
 * Every command that *does* something at a point carries that point:
   `skip`, `assign`, `store`, `assert`, `if`, `while`. `seq` carries none; it is
   pure control. The entry point is derived (`Cmd.entry?`), not stored, so a
@@ -93,7 +108,9 @@ inductive Expr : Type where
   | div (l r : Expr)
   /-- Array read `a[i]`; fails when `i` is outside `[0, len(a))`. -/
   | read (a : Arr) (i : Expr)
-  /-- Array length `len(a)`; total, since the state carries the array. -/
+  /-- Array length `len(a)`; the state carries the array, so it never fails for a
+  missing array. It can only fail if the length exceeds the machine range, which
+  the frontend's constant bounds exclude. -/
   | len (a : Arr)
   deriving DecidableEq, Repr
 
@@ -298,5 +315,75 @@ theorem memAt_setMem_noteq (s : State) {a b : Arr} (h : b ≠ a) (arr : Array I3
   simp [init, memAt]
 
 end State
+
+/-! ## Expression evaluation (M1.5) -/
+
+/-- Evaluate an integer expression.
+
+`none` means "went wrong": a zero divisor or `min / -1` in `div`, signed
+overflow in `add`/`sub`/`mul`, or an out-of-bounds `read`. Those four cases are
+exactly the safety properties the project certifies, which is why this function
+is where the safety property is defined (plan M1.5). `len` is total except for a
+length beyond the machine range, which constant array bounds rule out.
+
+Operands are evaluated left to right; since both are evaluated, the order does
+not change the result (any failure yields `none`). -/
+def eval : Expr → State → Option I32
+  | .const n, _ => some n
+  | .var x, s => some (s.get x)
+  | .add l r, s => eval l s >>= fun a => eval r s >>= fun b => I32.add? a b
+  | .sub l r, s => eval l s >>= fun a => eval r s >>= fun b => I32.sub? a b
+  | .mul l r, s => eval l s >>= fun a => eval r s >>= fun b => I32.mul? a b
+  | .div l r, s => eval l s >>= fun a => eval r s >>= fun b => I32.div? a b
+  | .read a i, s =>
+      eval i s >>= fun idx =>
+        let arr := s.memAt a
+        if 0 ≤ idx.val ∧ idx.val < (arr.size : Int) then
+          some (arr.getD idx.val.toNat I32.zero)
+        else none
+  | .len a, s => I32.ofInt? ((s.memAt a).size : Int)
+
+/-- Compare two machine integers. Total: comparisons themselves never fail; their
+operands can. -/
+def compare : CmpOp → I32 → I32 → Bool
+  | .eq, a, b => decide (a.val = b.val)
+  | .ne, a, b => decide (a.val ≠ b.val)
+  | .lt, a, b => decide (a.val < b.val)
+  | .le, a, b => decide (a.val ≤ b.val)
+  | .gt, a, b => decide (b.val < a.val)
+  | .ge, a, b => decide (b.val ≤ a.val)
+
+/-- Evaluate a condition. `none` propagates any operand failure.
+
+`and` and `or` are **strict**: both operands are evaluated. A short-circuit
+language would make a partial operation on the right a *conditional* obligation
+("only if the left is true"), which the checker's per-point safety predicates do
+not express; strictness keeps every obligation unconditional. See the module
+notes for the trade-off against C. -/
+def evalB : BExp → State → Option Bool
+  | .cmp op l r, s => eval l s >>= fun a => eval r s >>= fun b => some (compare op a b)
+  | .not b, s => evalB b s >>= fun v => some (!v)
+  | .and l r, s => evalB l s >>= fun a => evalB r s >>= fun b => some (a && b)
+  | .or l r, s => evalB l s >>= fun a => evalB r s >>= fun b => some (a || b)
+
+@[simp] theorem eval_const (n : I32) (s : State) : eval (.const n) s = some n := rfl
+
+@[simp] theorem eval_var (x : Var) (s : State) : eval (.var x) s = some (s.get x) := rfl
+
+@[simp] theorem eval_len (a : Arr) (s : State) :
+    eval (.len a) s = I32.ofInt? ((s.memAt a).size : Int) := rfl
+
+/-- Evaluation is deterministic: it is a function, so two `some` results must
+agree. Useful when composing with `step` (M1.6). -/
+theorem eval_det {e : Expr} {s : State} {a b : I32}
+    (h1 : eval e s = some a) (h2 : eval e s = some b) : a = b := by
+  rw [h1] at h2
+  injection h2
+
+/-- Condition evaluation is deterministic. -/
+theorem evalB_det {b : BExp} {s : State} {x y : Bool}
+    (h1 : evalB b s = some x) (h2 : evalB b s = some y) : x = y := by
+  rw [h1] at h2
+  injection h2
 
 end CertCore

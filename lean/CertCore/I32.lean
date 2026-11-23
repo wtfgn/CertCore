@@ -6,18 +6,21 @@ proof that it lies in `[-2^31, 2^31 - 1]`.
 
 Two layers, deliberately kept separate:
 
-* **Checked arithmetic** (`add?`, `sub?`, `mul?`, `neg?`) returns `none` exactly
-  when the mathematical result does not fit. `eval` (M1.5) turns that `none` into
-  a stuck state, so **signed overflow is an observable safety violation** — not a
-  silent wrap, and not an impossibility by construction (roadmap M1.1).
+* **Checked arithmetic** (`add?`, `sub?`, `mul?`, `neg?`, `div?`) returns `none`
+  exactly when the mathematical result does not fit (or, for `div?`, when the
+  divisor is zero). `eval` (M1.5) turns that `none` into a stuck state, so
+  **signed overflow is an observable safety violation** — not a silent wrap, and
+  not an impossibility by construction (roadmap M1.1).
 * **Wrap arithmetic** (`addWrap`, …) is the machine behaviour: the mathematical
   result reduced modulo `2^32` into the signed range. `*?_wrap` proves the two
   agree whenever the checked operation succeeds, so the model of the machine and
-  the model of the error cannot drift apart.
+  the model of the error cannot drift apart. Division has no wrap counterpart:
+  a machine divide overflow traps rather than wrapping.
 
-Division and remainder are defined with `eval` in M1.5: their failure modes
-(dividing by zero, and `min / -1` overflow) are semantic, and their rounding
-convention belongs with the expression semantics.
+Division is `div?`, truncating toward zero like C-family machine arithmetic and
+x86 `idiv`, with `none` on a zero divisor and on the single overflow case
+`min / -1`. Lean's `Int` division is Euclidean, so it is deliberately not used;
+the tests pin the difference. Remainder is not part of `Imp`.
 
 No Mathlib. The representation is `Int`-backed rather than a `UInt32` because
 every later proof (interval transfer, safety predicates) reasons about ranges;
@@ -110,6 +113,15 @@ def mul? (a b : I32) : Option I32 := ofInt? (a.val * b.val)
 
 /-- Negation, failing on the one overflow case (`-min`). -/
 def neg? (a : I32) : Option I32 := ofInt? (-a.val)
+
+/-- Truncating division, failing on a zero divisor and on the single overflow
+case `min / -1`.
+
+Truncation is toward zero, matching C-family machine arithmetic and x86 `idiv`.
+Lean's `Int` division is Euclidean, so `Int.tdiv` is used deliberately; the tests
+pin `(-7) / 2 = -3`, not `-4`. -/
+def div? (a b : I32) : Option I32 :=
+  if b.val = 0 then none else ofInt? (Int.tdiv a.val b.val)
 
 /-! ## Wrap-around (the machine model) -/
 
@@ -239,6 +251,32 @@ theorem neg?_none_iff {a : I32} :
 
 theorem neg?_wrap {a c : I32} (h : neg? a = some c) : (negWrap a).val = c.val :=
   ofIntWrap_agrees h
+
+theorem div?_sound {a b c : I32} (h : div? a b = some c) :
+    c.val = Int.tdiv a.val b.val := by
+  unfold div? at h
+  split at h
+  · contradiction
+  · exact ofInt?_sound h
+
+theorem div?_zero (a b : I32) (hb : b.val = 0) : div? a b = none := by
+  simp [div?, hb]
+
+theorem div?_isSome_iff {a b : I32} :
+    (div? a b).isSome ↔
+      b.val ≠ 0 ∧ i32Min ≤ Int.tdiv a.val b.val ∧ Int.tdiv a.val b.val ≤ i32Max := by
+  unfold div?
+  by_cases hb : b.val = 0
+  · simp [hb]
+  · simp [hb, ofInt?_isSome_iff]
+
+theorem div?_none_iff {a b : I32} :
+    div? a b = none ↔
+      b.val = 0 ∨ ¬(i32Min ≤ Int.tdiv a.val b.val ∧ Int.tdiv a.val b.val ≤ i32Max) := by
+  unfold div?
+  by_cases hb : b.val = 0
+  · simp [hb]
+  · simp [hb, ofInt?_none_iff]
 
 end I32
 end CertCore
