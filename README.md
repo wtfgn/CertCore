@@ -38,7 +38,7 @@ $ lake env lean lean/CertCore/Audit.lean    # axiom audit; silent = clean
 | Path | Role | Trusted? |
 |---|---|---|
 | `lean/CertCore/I32.lean` | signed 32-bit integers; checked and wrapping arithmetic | **yes** (M1.1) |
-| `lean/CertCore/Semantics.lean` | syntax (M1.2–M1.3), fuel-indexed `step`/`run`, `Safe` (M1.4–M1.7) | **yes** |
+| `lean/CertCore/Semantics.lean` | syntax and state (M1.2–M1.4), fuel-indexed `step`/`run`, `Safe` (M1.5–M1.7) | **yes** |
 | `lean/CertCore/Domain.lean` | `CertDomain` interface, combinators | **yes** (M2, M6) |
 | `lean/CertCore/Cert.lean` | certificate type, total JSON decoder | **yes** (M4) |
 | `lean/CertCore/Check.lean` | three obligation families, typed diagnostic | **yes** (M3) |
@@ -74,6 +74,7 @@ verdict. See [`docs/TCB.md`](docs/TCB.md) and the audit command above.
 $ lake build                                     # must be silent
 $ lake env lean lean/Tests/I32.lean              # executable boundary tests
 $ lake env lean lean/Tests/Syntax.lean           # syntax-layer checks
+$ lake env lean lean/Tests/State.lean            # state-layer checks
 $ grep -rnE '\bsorry\b' lean --include='*.lean'  # must print nothing
 $ lake env lean lean/CertCore/Audit.lean         # must be silent
 ```

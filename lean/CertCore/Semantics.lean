@@ -6,8 +6,8 @@ import CertCore.I32
 Abstract syntax, configurations, the fuel-indexed deterministic small-step
 semantics, and the safety predicate `Safe`.
 
-Status: **syntax complete (M1.2–M1.3); semantics pending (M1.4–M1.7)**. This
-module is inside the TCB: a bug here changes what "safe" means (plan §10.1).
+Status: **syntax and state complete (M1.2–M1.4); semantics pending (M1.5–M1.7)**.
+This module is inside the TCB: a bug here changes what "safe" means (plan §10.1).
 
 Implemented:
 
@@ -20,10 +20,12 @@ Implemented:
 * `Cmd`, `Program` (M1.3) — `skip`, assignment, array store, `assert`, `if`,
   `while`, sequencing; atomic and branch commands carry their program point, and
   a `Program` carries the constant length of every array.
+* `State` (M1.4) — a total environment `Var → I32` and total memory
+  `Arr → Array I32`, with initialisation and pointwise update lemmas.
 
 Pending:
 
-* `State`, `eval`, `step`, `run`, `Safe` (M1.4–M1.7).
+* `eval`, `step`, `run`, `Safe` (M1.5–M1.7).
 * `edges` (M1.8), T1 `step_det` (M1.9), T2 `safe_iff` (M1.10).
 
 Decisions that matter later:
@@ -31,9 +33,9 @@ Decisions that matter later:
 * Constants are `I32`, so an out-of-range source literal is a *frontend* error
   (the parser uses `I32.ofInt?`), not a runtime `none`; every expression node is
   already in the machine range.
-* Variables are names and environments will be total `Var → I32` functions
-  (M1.4), so evaluation cannot get stuck on a missing variable. The frontend
-  rejects unbound names; the semantics stays total regardless.
+* Variables are names and environments are total `Var → I32` functions (M1.4),
+  so evaluation cannot get stuck on a missing variable. The frontend rejects
+  unbound names; the semantics stays total regardless.
 * Division is an expression former (`Expr.div`), not a command. Its failure modes
   — zero divisor and `min / -1` — are fixed by `eval` in M1.5. A separate `div`
   command would duplicate `assign x (div l r)` and give the AST two encodings of
@@ -178,5 +180,123 @@ namespace Program
 def entry? (program : Program) : Option Point := program.body.entry?
 
 end Program
+
+/-! ## State (M1.4) -/
+
+/-- Pointwise update of a total function at one argument.
+
+Lean core does not provide `Function.update`, and the trusted tree deliberately
+does not depend on Mathlib, so this small utility (and its lemmas) lives here. -/
+def funUpdate {α β : Type} [DecidableEq α] (f : α → β) (a : α) (b : β) : α → β :=
+  fun x => if x = a then b else f x
+
+@[simp] theorem funUpdate_same {α β : Type} [DecidableEq α] (f : α → β) (a : α) (b : β) :
+    funUpdate f a b a = b := by
+  simp [funUpdate]
+
+theorem funUpdate_noteq {α β : Type} [DecidableEq α] (f : α → β) {a x : α} (h : x ≠ a) (b : β) :
+    funUpdate f a b x = f x := by
+  simp [funUpdate, h]
+
+@[simp] theorem funUpdate_self {α β : Type} [DecidableEq α] (f : α → β) (a : α) :
+    funUpdate f a (f a) = f := by
+  funext x
+  by_cases h : x = a <;> simp [funUpdate, h]
+
+@[simp] theorem funUpdate_funUpdate_same {α β : Type} [DecidableEq α]
+    (f : α → β) (a : α) (b c : β) :
+    funUpdate (funUpdate f a b) a c = funUpdate f a c := by
+  funext x
+  by_cases h : x = a <;> simp [funUpdate, h]
+
+theorem funUpdate_funUpdate_noteq {α β : Type} [DecidableEq α]
+    (f : α → β) {a b : α} (h : a ≠ b) (v w : β) :
+    funUpdate (funUpdate f a v) b w = funUpdate (funUpdate f b w) a v := by
+  funext x
+  by_cases hx : x = a
+  · simp [funUpdate, hx, h]
+  · by_cases hy : x = b
+    · have hba : b ≠ a := fun hba => h hba.symm
+      simp [funUpdate, hy, hba]
+    · simp [funUpdate, hx, hy]
+
+/-- A program state: a total environment and a total memory.
+
+Both are total functions, so evaluation can never get stuck on a missing
+variable or array (plan M1.4). The frontend rejects unbound names, but the
+semantics does not rely on that. -/
+structure State : Type where
+  /-- Variable environment. -/
+  env : Var → I32
+  /-- Array memory. -/
+  mem : Arr → Array I32
+
+namespace State
+
+/-- Read a variable. Total: an unwritten variable reads as whatever `env` holds
+(zero in `init`). -/
+def get (s : State) (x : Var) : I32 := s.env x
+
+/-- Write a variable. -/
+def set (s : State) (x : Var) (v : I32) : State :=
+  { s with env := funUpdate s.env x v }
+
+/-- Read an array. Total: an undeclared array number reads as the empty array. -/
+def memAt (s : State) (a : Arr) : Array I32 := s.mem a
+
+/-- Replace a whole array. -/
+def setMem (s : State) (a : Arr) (arr : Array I32) : State :=
+  { s with mem := funUpdate s.mem a arr }
+
+/-- The initial state of a program: every variable is zero, and every declared
+array is allocated to its constant length and zero-filled.
+
+An array number outside `Program.arrays` gets the empty array: the frontend
+rejects such programs, and the semantics stays total regardless. -/
+def init (p : Program) : State :=
+  { env := fun _ => I32.zero,
+    mem := fun a => Array.replicate (p.arrays.getD a 0) I32.zero }
+
+@[simp] theorem get_set_same (s : State) (x : Var) (v : I32) :
+    (s.set x v).get x = v := by
+  simp [get, set, funUpdate]
+
+theorem get_set_noteq (s : State) {x y : Var} (h : y ≠ x) (v : I32) :
+    (s.set x v).get y = s.get y := by
+  simp [get, set, funUpdate, h]
+
+@[simp] theorem set_get (s : State) (x : Var) : s.set x (s.get x) = s := by
+  cases s
+  simp [set, get, funUpdate_self]
+
+@[simp] theorem set_set_same (s : State) (x : Var) (v w : I32) :
+    (s.set x v).set x w = s.set x w := by
+  cases s
+  simp [set, funUpdate_funUpdate_same]
+
+theorem set_set_noteq (s : State) {x y : Var} (h : x ≠ y) (v w : I32) :
+    (s.set x v).set y w = (s.set y w).set x v := by
+  cases s with
+  | mk env mem =>
+    have h' : funUpdate (funUpdate env x v) y w = funUpdate (funUpdate env y w) x v :=
+      funUpdate_funUpdate_noteq (f := env) (a := x) (b := y) (h := h) v w
+    simp [set, h']
+
+@[simp] theorem memAt_setMem_same (s : State) (a : Arr) (arr : Array I32) :
+    (s.setMem a arr).memAt a = arr := by
+  simp [memAt, setMem, funUpdate]
+
+theorem memAt_setMem_noteq (s : State) {a b : Arr} (h : b ≠ a) (arr : Array I32) :
+    (s.setMem a arr).memAt b = s.memAt b := by
+  simp [memAt, setMem, funUpdate, h]
+
+@[simp] theorem get_init (p : Program) (x : Var) : (init p).get x = I32.zero := by
+  simp [init, get]
+
+@[simp] theorem memAt_init (p : Program) (a : Arr) :
+    (init p).memAt a = Array.replicate (p.arrays.getD a 0) I32.zero := by
+  simp [init, memAt]
+
+end State
 
 end CertCore
