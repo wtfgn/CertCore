@@ -40,6 +40,10 @@ jobs:
       - name: I32 smoke tests
         run: lake env lean lean/Tests/I32.lean
 
+      # Syntax-layer checks (M1.2-M1.3): derived entry points and structural equality.
+      - name: Syntax smoke tests
+        run: lake env lean lean/Tests/Syntax.lean
+
       # Roadmap §2 rule 5: main never carries an undocumented unproved goal.
       # Word-boundary match so `sorryAx` in prose does not trip it.
       - name: Reject 'sorry' in the trusted tree

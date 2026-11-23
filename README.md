@@ -73,6 +73,7 @@ verdict. See [`docs/TCB.md`](docs/TCB.md) and the audit command above.
 ```console
 $ lake build                                     # must be silent
 $ lake env lean lean/Tests/I32.lean              # executable boundary tests
+$ lake env lean lean/Tests/Syntax.lean           # syntax-layer checks
 $ grep -rnE '\bsorry\b' lean --include='*.lean'  # must print nothing
 $ lake env lean lean/CertCore/Audit.lean         # must be silent
 ```
