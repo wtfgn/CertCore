@@ -37,6 +37,7 @@ $ lake env lean lean/CertCore/Audit.lean    # axiom audit; silent = clean
 
 | Path | Role | Trusted? |
 |---|---|---|
+| `lean/CertCore/I32.lean` | signed 32-bit integers; checked and wrapping arithmetic | **yes** (M1.1) |
 | `lean/CertCore/Semantics.lean` | AST, fuel-indexed `step`/`run`, `Safe` | **yes** (M1) |
 | `lean/CertCore/Domain.lean` | `CertDomain` interface, combinators | **yes** (M2, M6) |
 | `lean/CertCore/Cert.lean` | certificate type, total JSON decoder | **yes** (M4) |
@@ -70,7 +71,8 @@ verdict. See [`docs/TCB.md`](docs/TCB.md) and the audit command above.
 ## Reproducing the gates locally
 
 ```console
-$ lake build                                   # must be silent
+$ lake build                                     # must be silent
+$ lake env lean lean/Tests/I32.lean              # executable boundary tests
 $ grep -rnE '\bsorry\b' lean --include='*.lean'  # must print nothing
-$ lake env lean lean/CertCore/Audit.lean        # must be silent
+$ lake env lean lean/CertCore/Audit.lean         # must be silent
 ```

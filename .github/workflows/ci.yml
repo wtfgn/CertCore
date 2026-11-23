@@ -34,6 +34,12 @@ jobs:
       - name: Build (proofs and checker)
         run: lake build
 
+      # Executable boundary tests for the machine-integer model (M1.1). The
+      # cases are `#guard`s and `#guard_msgs`s, so a drifted value fails this
+      # step; a green run means every boundary case still holds.
+      - name: I32 smoke tests
+        run: lake env lean lean/Tests/I32.lean
+
       # Roadmap §2 rule 5: main never carries an undocumented unproved goal.
       # Word-boundary match so `sorryAx` in prose does not trip it.
       - name: Reject 'sorry' in the trusted tree
