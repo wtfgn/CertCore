@@ -38,7 +38,7 @@ $ lake env lean lean/CertCore/Audit.lean    # axiom audit; silent = clean
 | Path | Role | Trusted? |
 |---|---|---|
 | `lean/CertCore/I32.lean` | signed 32-bit integers; checked and wrapping arithmetic | **yes** (M1.1) |
-| `lean/CertCore/Semantics.lean` | AST, fuel-indexed `step`/`run`, `Safe` | **yes** (M1) |
+| `lean/CertCore/Semantics.lean` | syntax (M1.2–M1.3), fuel-indexed `step`/`run`, `Safe` (M1.4–M1.7) | **yes** |
 | `lean/CertCore/Domain.lean` | `CertDomain` interface, combinators | **yes** (M2, M6) |
 | `lean/CertCore/Cert.lean` | certificate type, total JSON decoder | **yes** (M4) |
 | `lean/CertCore/Check.lean` | three obligation families, typed diagnostic | **yes** (M3) |
