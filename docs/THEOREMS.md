@@ -9,7 +9,7 @@ Status values: `todo` · `in-progress` · `proved` · `post-month`.
 
 | ID | Statement | Role | Difficulty | Status | Milestone | Lean file |
 |---|---|---|---|---|---|---|
-| **T1** | `step_det : step c s = some s' → step c s = some s'' → s' = s''` | Semantics sanity | Low | todo | M1.9 | `Semantics.lean` |
+| **T1** | `step_det : step cfg p s = some c₁ → step cfg p s = some c₂ → c₁ = c₂` (configurations, not just states) | Semantics sanity | Low | **proved** | M1.9 | `Semantics.lean` |
 | **T2** | `safe_iff : Safe s ↔ ∀ n, run n s ≠ none` | Removes coinduction; every later proof is an ordinary induction | Low | todo | M1.10 | `Semantics.lean` |
 | **T3** | `run_sound : s ∈ γ a → run n s = some s' → s' ∈ γ (transferStar n a)` | Lifts transfer soundness to traces | Medium | todo | M3 | `Proofs.lean` |
 | **T4** | Per domain: `ble_sound`, `join_sound`, `transfer_sound`, `top_sound`, and `entails_sound` for the safety-predicate test | Domain instances; intervals in-month | Medium | todo | M2 | `Domain/Interval.lean` |
@@ -35,6 +35,13 @@ Status values: `todo` · `in-progress` · `proved` · `post-month`.
   invariant has a certificate the checker accepts.
 - **T10 is a correctness requirement, not hardening.** A certifying checker has
   an adversarial input model that a verified analyzer does not.
+- **T1's statement changed when the semantics did.** The plan's T1 was an
+  induction over structured commands and `eval`. M1.6 compiled the AST to a
+  deterministic edge machine, so T1 becomes "two successful results from the same
+  configuration agree" — immediate, because `step` is a function. The induction
+  the plan expected now lives in `eval_det` (M1.5) and in deterministic
+  compilation (M1.6); this is recorded here so the narrower statement is visible
+  rather than silently swapped.
 - **T4 carries one operation the plan's sketch omits.** Safety cannot be a `ble`
   call (`{x ≠ 0}` is not one interval), so each domain supplies a sound
   entailment test for safety predicates. Rationale and consequences are in

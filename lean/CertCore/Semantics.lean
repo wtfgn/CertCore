@@ -7,8 +7,8 @@ Abstract syntax, configurations, the fuel-indexed deterministic small-step
 semantics, and the safety predicate `Safe`.
 
 Status: **syntax, state, evaluation, step, run/Safe and edges complete
-(M1.2–M1.8); T1 and T2 pending (M1.9–M1.10)**. This module is inside the TCB: a
-bug here changes what "safe" means (plan §10.1).
+(M1.2–M1.8); T1 proved (M1.9), T2 pending (M1.10)**. This module is inside the
+TCB: a bug here changes what "safe" means (plan §10.1).
 
 Implemented:
 
@@ -556,6 +556,18 @@ def step (cfg : CFG) (p : Point) (s : State) : Option (Point × State) :=
   | none => none
   | some (.atomic cmd next) => exec cmd s >>= fun s' => some (next, s')
   | some (.branch b t e) => evalB b s >>= fun v => some ((if v then t else e), s)
+
+/-- **T1 — determinism.** A configuration has at most one successor.
+
+Under the compiled edge machine this is immediate: `step` is a function, so two
+successful results must be the same configuration. The plan expected an induction
+on commands and on `eval`; that induction now lives in `eval_det` (M1.5) and in
+`Cmd.compile`, which is deterministic by construction (M1.6). The change of
+statement is recorded in `docs/THEOREMS.md`. -/
+theorem step_det {cfg : CFG} {p : Point} {s : State} {c₁ c₂ : Point × State}
+    (h1 : step cfg p s = some c₁) (h2 : step cfg p s = some c₂) : c₁ = c₂ := by
+  rw [h1] at h2
+  injection h2
 
 /-! ## Runs and safety (M1.7) -/
 
