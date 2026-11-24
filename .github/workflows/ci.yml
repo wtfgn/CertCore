@@ -52,6 +52,10 @@ jobs:
       - name: Eval smoke tests
         run: lake env lean lean/Tests/Eval.lean
 
+      # CFG compilation and one-step checks (M1.6).
+      - name: Step smoke tests
+        run: lake env lean lean/Tests/Step.lean
+
       # Roadmap §2 rule 5: main never carries an undocumented unproved goal.
       # Word-boundary match so `sorryAx` in prose does not trip it.
       - name: Reject 'sorry' in the trusted tree

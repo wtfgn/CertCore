@@ -6,9 +6,9 @@ import CertCore.I32
 Abstract syntax, configurations, the fuel-indexed deterministic small-step
 semantics, and the safety predicate `Safe`.
 
-Status: **syntax, state and expression evaluation complete (M1.2–M1.5); command
-semantics pending (M1.6–M1.7)**. This module is inside the TCB: a bug here
-changes what "safe" means (plan §10.1).
+Status: **syntax, state, evaluation and one-step CFG semantics complete
+(M1.2–M1.6); `run`/`Safe` pending (M1.7)**. This module is inside the TCB: a bug
+here changes what "safe" means (plan §10.1).
 
 Implemented:
 
@@ -26,10 +26,15 @@ Implemented:
 * `eval`, `evalB` (M1.5) — expression and condition evaluation to `Option`;
   `none` for division by zero, `min / -1`, signed overflow and out-of-bounds
   read. This is where the safety property is defined.
+* `AtomicCmd`, `Instr`, `CFG`, `Cmd.compile`, `Program.compile`, `CFG.step`
+  (M1.6) — the compiled edge machine: one instruction per step, deterministic
+  branches, a halt point that stutters, and `none` reserved for the hazards.
 
 Pending:
 
-* `step`, `run`, `Safe` (M1.6–M1.7).
+* `run`, `Safe` (M1.7).
+* `edges` (M1.8) — the checker-facing `(Point, command, Point)` projection of
+  `CFG.instrs`; T1 `step_det` (M1.9), T2 `safe_iff` (M1.10).
 * `edges` (M1.8), T1 `step_det` (M1.9), T2 `safe_iff` (M1.10).
 
 Decisions that matter later:
@@ -59,15 +64,26 @@ Decisions that matter later:
   `skip`, `assign`, `store`, `assert`, `if`, `while`. `seq` carries none; it is
   pure control. The entry point is derived (`Cmd.entry?`), not stored, so a
   program cannot disagree with itself about where it starts.
-* **Semantics decision (reviewed at M1.3).** This is the structured *source* AST.
-  The operational semantics will be **edge-based**: `edges : Program → List Edge`
-  (M1.8, pulled forward to before `step`) compiles this AST to a CFG whose edges
-  are the semantic steps, so T5 stays the plan's one-page induction over edge
-  obligations. The alternative — structural big-step semantics plus a simulation
-  lemma relating runs to edge obligations — was rejected because it moves proof
-  work into the load-bearing theorem. The structured AST remains what the parser
-  produces and what the Haskell mirror consumes; the certificate is about the
-  compiled edges.
+* **Semantics decision (reviewed at M1.3, realised at M1.6).** This is the
+  structured *source* AST; the operational semantics is **edge-based**.
+  `Cmd.compile`/`Program.compile` (M1.6) lower the AST to a `CFG` of instructions
+  (atomic actions and deterministic branches), and `CFG.step` walks one
+  instruction at a time. The checker-facing `Edge = Point × EdgeCmd × Point`
+  projection is M1.8. This keeps T5 the plan's one-page induction over edge
+  obligations; the structural alternative — big-step semantics plus a simulation
+  lemma relating runs to edges — was rejected because it moves proof work into
+  the load-bearing theorem. The structured AST remains what the parser produces
+  and what the Haskell mirror consumes; the certificate is about the compiled
+  graph.
+* **The compiler is trusted.** `Cmd.compile` is small, deterministic and in the
+  TCB; a bug there changes what the program means. It is tested through `step`
+  (`lean/Tests/Step.lean`), and the Haskell mirror will have to agree with it.
+  A malformed program with duplicate points gets last-write-wins; the frontend's
+  point-uniqueness invariant is what makes compilation deterministic in practice.
+* **Halting is a stutter.** Compilation adds a halt point holding `skip` to
+  itself, so termination is never `none`. `none` is reserved for the four hazards
+  (plus an out-of-range point, which is a malformed CFG rather than a
+  language-level failure).
 -/
 
 namespace CertCore
@@ -385,5 +401,139 @@ theorem evalB_det {b : BExp} {s : State} {x y : Bool}
     (h1 : evalB b s = some x) (h2 : evalB b s = some y) : x = y := by
   rw [h1] at h2
   injection h2
+
+/-! ## Compiled CFG and one step (M1.6) -/
+
+/-- Atomic actions executed by a CFG instruction. Branching is a separate
+instruction form, so each atomic action has exactly one successor. -/
+inductive AtomicCmd : Type where
+  /-- Do nothing. -/
+  | skip
+  /-- `x := e`. -/
+  | assign (x : Var) (e : Expr)
+  /-- `a[i] := e`. -/
+  | store (a : Arr) (i v : Expr)
+  /-- `assert b`. -/
+  | assert (b : BExp)
+  deriving DecidableEq, Repr
+
+/-- A CFG instruction: an atomic action with one successor, or a conditional
+branch with two successors.
+
+This is the "edge machine" the M1.3 notes committed to: one instruction is one
+semantic step, loops are back edges, and there is no continuation stack. -/
+inductive Instr : Type where
+  /-- Execute `cmd`, then continue at `next`. -/
+  | atomic (cmd : AtomicCmd) (next : Point)
+  /-- Evaluate `b`; go to `then_` when true and `else_` when false. -/
+  | branch (b : BExp) (then_ else_ : Point)
+  deriving DecidableEq, Repr
+
+/-- A compiled control-flow graph: an entry point and an instruction array
+indexed by program point. The halt point is one past the largest program point
+and holds a self-looping `skip`, so termination is a safe stutter, never a
+failure. -/
+structure CFG : Type where
+  /-- Where execution starts. -/
+  entry : Point
+  /-- Instruction per point; indexed by `Point`. -/
+  instrs : Array Instr
+  deriving Repr
+
+namespace CFG
+
+/-- The instruction at a point, if the point is inside the array. -/
+def instrAt (cfg : CFG) (p : Point) : Option Instr :=
+  if p < cfg.instrs.size then some (cfg.instrs.getD p (.atomic .skip p)) else none
+
+end CFG
+
+namespace Cmd
+
+/-- The largest point mentioned by a command, used to size the instruction array
+before compilation fills it. -/
+def maxPoint : Cmd → Nat
+  | .skip p => p
+  | .assign p _ _ => p
+  | .store p _ _ _ => p
+  | .assert p _ => p
+  | .ite p _ _ _ => p
+  | .while p _ _ => p
+  | .seq a b => max a.maxPoint b.maxPoint
+
+/-- Write one instruction at its point, if the point is inside the allocated
+array. A well-formed program has unique points, so each slot is written once; a
+malformed program's out-of-range points are ignored rather than crashing. -/
+def place (instrs : Array Instr) (p : Point) (i : Instr) : Array Instr :=
+  if h : p < instrs.size then instrs.set p i h else instrs
+
+/-- Compile a command with continuation point `k`: where control goes after the
+command finishes.
+
+Atomic commands fall through to `k`; branches take their targets from the
+sub-commands' entry points; a `while`'s false branch goes to `k` and its body
+loops back to the guard. This is the continuation threading that a structural
+small-step semantics would otherwise have to carry in a runtime stack. -/
+def compile : Cmd → Point → Array Instr → Array Instr
+  | .skip p, k, instrs => place instrs p (.atomic .skip k)
+  | .assign p x e, k, instrs => place instrs p (.atomic (.assign x e) k)
+  | .store p a i v, k, instrs => place instrs p (.atomic (.store a i v) k)
+  | .assert p b, k, instrs => place instrs p (.atomic (.assert b) k)
+  | .ite p b t e, k, instrs =>
+      let instrs := place instrs p (.branch b (t.entry?.getD k) (e.entry?.getD k))
+      compile t k (compile e k instrs)
+  | .while p b body, k, instrs =>
+      let instrs := place instrs p (.branch b (body.entry?.getD k) k)
+      compile body p instrs
+  | .seq a b, k, instrs =>
+      compile a (b.entry?.getD k) (compile b k instrs)
+
+end Cmd
+
+/-- Compile a program to a CFG.
+
+The array is sized to hold every program point plus one halt slot; the halt slot
+is a self-looping `skip`, so reaching it is a safe stutter rather than an error.
+A malformed program with duplicate points gets last-write-wins; the frontend's
+uniqueness invariant is what makes this deterministic in practice. -/
+def Program.compile (p : Program) : CFG :=
+  let halt : Point := p.body.maxPoint + 1
+  let instrs : Array Instr := Array.replicate (halt + 1) (.atomic .skip halt)
+  { entry := p.body.entry?.getD halt,
+    instrs := Cmd.compile p.body halt instrs }
+
+namespace CFG
+
+/-- Execute an atomic action. `none` is reserved for the four hazards; it is the
+only way an atomic step can fail. -/
+def exec (cmd : AtomicCmd) (s : State) : Option State :=
+  match cmd with
+  | .skip => some s
+  | .assign x e => eval e s >>= fun v => some (s.set x v)
+  | .store a i v =>
+      eval i s >>= fun idx =>
+      eval v s >>= fun val =>
+        let arr := s.memAt a
+        if h : 0 ≤ idx.val ∧ idx.val < (arr.size : Int) then
+          some (s.setMem a (arr.set idx.val.toNat val (by
+            have h1 : 0 ≤ idx.val := h.1
+            have h2 : idx.val < (arr.size : Int) := h.2
+            have h3 : (idx.val.toNat : Int) = idx.val := Int.toNat_of_nonneg h1
+            omega)))
+        else none
+  | .assert b => evalB b s >>= fun v => if v then some s else none
+
+/-- One step of the compiled machine: fetch the instruction at `p`, execute it,
+and move to its successor. A branch evaluates its condition and chooses a side.
+
+`none` means a command or condition failed. An out-of-range point is also `none`
+— that is a malformed CFG, not a language-level hazard. -/
+def step (cfg : CFG) (p : Point) (s : State) : Option (Point × State) :=
+  match cfg.instrAt p with
+  | none => none
+  | some (.atomic cmd next) => exec cmd s >>= fun s' => some (next, s')
+  | some (.branch b t e) => evalB b s >>= fun v => some ((if v then t else e), s)
+
+end CFG
 
 end CertCore
