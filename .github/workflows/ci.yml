@@ -56,6 +56,10 @@ jobs:
       - name: Step smoke tests
         run: lake env lean lean/Tests/Step.lean
 
+      # Fuel-indexed run and safety checks (M1.7).
+      - name: Run smoke tests
+        run: lake env lean lean/Tests/Run.lean
+
       # Roadmap §2 rule 5: main never carries an undocumented unproved goal.
       # Word-boundary match so `sorryAx` in prose does not trip it.
       - name: Reject 'sorry' in the trusted tree

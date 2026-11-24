@@ -6,9 +6,9 @@ import CertCore.I32
 Abstract syntax, configurations, the fuel-indexed deterministic small-step
 semantics, and the safety predicate `Safe`.
 
-Status: **syntax, state, evaluation and one-step CFG semantics complete
-(M1.2–M1.6); `run`/`Safe` pending (M1.7)**. This module is inside the TCB: a bug
-here changes what "safe" means (plan §10.1).
+Status: **syntax, state, evaluation, CFG step and fuel-indexed run complete
+(M1.2–M1.7); `edges`, T1 and T2 pending (M1.8–M1.10)**. This module is inside the
+TCB: a bug here changes what "safe" means (plan §10.1).
 
 Implemented:
 
@@ -29,13 +29,25 @@ Implemented:
 * `AtomicCmd`, `Instr`, `CFG`, `Cmd.compile`, `Program.compile`, `CFG.step`
   (M1.6) — the compiled edge machine: one instruction per step, deterministic
   branches, a halt point that stutters, and `none` reserved for the hazards.
+* `CFG.run`, `CFG.Safe`, `Program.safe` (M1.7) — fuel-indexed iteration of `step`;
+  `Safe` quantifies over every finite number of steps, so diverging runs and the
+  halt stutter are safe and fuel exhaustion is not failure.
 
 Pending:
 
-* `run`, `Safe` (M1.7).
 * `edges` (M1.8) — the checker-facing `(Point, command, Point)` projection of
-  `CFG.instrs`; T1 `step_det` (M1.9), T2 `safe_iff` (M1.10).
+  `CFG.instrs`.
+* T1 `step_det` (M1.9), T2 `safe_iff` (M1.10).
 * `edges` (M1.8), T1 `step_det` (M1.9), T2 `safe_iff` (M1.10).
+
+* **Fuel exhaustion is not failure.** `run 0` returns the starting
+  configuration, and `none` appears only when a step fails. `Safe` is
+  `∀ n, run n entry s ≠ none`, so a diverging run (including the halt stutter)
+  is safe: every finite prefix is. This is the plan's D6 choice, now realised
+  over the compiled machine.
+* **`Program.safe` pairs the compiled machine with `State.init`**, so the
+  program-level theorem (T5) will be about the program's initial state; the
+  state-general `CFG.Safe` stays available for the trace lemmas.
 
 Decisions that matter later:
 
@@ -533,6 +545,57 @@ def step (cfg : CFG) (p : Point) (s : State) : Option (Point × State) :=
   | none => none
   | some (.atomic cmd next) => exec cmd s >>= fun s' => some (next, s')
   | some (.branch b t e) => evalB b s >>= fun v => some ((if v then t else e), s)
+
+/-! ## Runs and safety (M1.7) -/
+
+/-- Run `n` steps from configuration `(p, s)`.
+
+Fuel exhaustion is **not** failure: `run 0` returns the starting configuration,
+and `none` appears only when a step itself fails. This is what lets `Safe` treat
+infinite loops (and the halt stutter) as safe: every finite prefix is fine. -/
+def run (cfg : CFG) : Nat → Point → State → Option (Point × State)
+  | 0, p, s => some (p, s)
+  | n + 1, p, s => step cfg p s >>= fun c => run cfg n c.1 c.2
+
+/-- Safety: from the entry point, no finite number of steps ever fails.
+
+Infinite loops are safe because every finite prefix is; divergence is not a
+safety violation. This is the plan's `Safe s := ∀ n, run n s ≠ none`, with the
+program's entry point and compiled machine made explicit. -/
+def Safe (cfg : CFG) (s : State) : Prop := ∀ n, run cfg n cfg.entry s ≠ none
+
+/-- A program is safe when its compiled machine is safe from the initial state. -/
+def Program.safe (p : Program) : Prop := CFG.Safe (Program.compile p) (State.init p)
+
+@[simp] theorem run_zero (cfg : CFG) (p : Point) (s : State) :
+    run cfg 0 p s = some (p, s) := rfl
+
+@[simp] theorem run_succ (cfg : CFG) (n : Nat) (p : Point) (s : State) :
+    run cfg (n + 1) p s = step cfg p s >>= fun c => run cfg n c.1 c.2 := rfl
+
+/-- A safe configuration cannot take a failing first step. -/
+theorem safe_step {cfg : CFG} {s : State} (h : Safe cfg s) :
+    (step cfg cfg.entry s).isSome = true := by
+  have h1 := h 1
+  cases hstep : step cfg cfg.entry s with
+  | none => simp [run, hstep] at h1
+  | some c => simp
+
+/-- One failing step refutes safety. -/
+theorem not_safe_of_step_none {cfg : CFG} {s : State}
+    (h : step cfg cfg.entry s = none) : ¬ Safe cfg s := by
+  intro hs
+  have h1 := hs 1
+  simp [run, h] at h1
+
+/-- `Safe` in terms of `isSome`, which is the form the later proofs use. -/
+theorem safe_iff_isSome {cfg : CFG} {s : State} :
+    Safe cfg s ↔ ∀ n, (run cfg n cfg.entry s).isSome = true := by
+  constructor
+  · intro h n
+    exact Option.isSome_iff_ne_none.mpr (h n)
+  · intro h n
+    exact Option.isSome_iff_ne_none.mp (h n)
 
 end CFG
 
