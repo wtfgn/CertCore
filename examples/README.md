@@ -1,8 +1,16 @@
-# examples/ — `.imp` benchmark programs
+# examples/ — `.imp` programs
 
-Empty at M0. M1.11 adds the first three programs (one safe, one
-division-by-zero, one array overflow); M10.1 grows the suite to ~30 programs in
-five families (plan §13.1):
+The surface syntax is specified in
+[`docs/imp-syntax.md`](../docs/imp-syntax.md). The first three fixtures (M1.11)
+are:
+
+| File | Expected |
+|---|---|
+| [`safe.imp`](safe.imp) | runs to halt with `x = 3`, `y = 1` |
+| [`div-zero.imp`](div-zero.imp) | fails at `10 / x` with `x = 0` |
+| [`array-overflow.imp`](array-overflow.imp) | fails storing `a[3]` in an array of length 3 |
+
+M10.1 grows the suite to ~30 programs in five families (plan §13.1):
 
 | Family | n | Purpose |
 |---|---|---|
@@ -15,12 +23,12 @@ five families (plan §13.1):
 ## Naming
 
 `family-number-name.imp`, e.g. `array-bounds-03-find.imp`. Each file carries a
-header comment with the expected verdict and the configuration expected to
-prove it:
+header comment with the expected verdict and the configuration expected to prove
+it:
 
 ```
--- expect: safe      config: interval, depth 0
--- expect: unsafe    config: none (division by zero at point 4)
+// expect: safe      config: interval, depth 0
+// expect: unsafe    config: none (division by zero at point 4)
 ```
 
 The suite is published *including* the programs no configuration certifies —

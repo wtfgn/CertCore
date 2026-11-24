@@ -1,0 +1,4 @@
+// expect: unsafe (array index 3 is outside [0, 3))
+array a[3];
+i := 3;
+a[i] := 1;

@@ -64,6 +64,10 @@ jobs:
       - name: Edges smoke tests
         run: lake env lean lean/Tests/Edges.lean
 
+      # The three example fixtures and their run outcomes (M1.11).
+      - name: Example smoke tests
+        run: lake env lean lean/Tests/Examples.lean
+
       # Roadmap §2 rule 5: main never carries an undocumented unproved goal.
       # Word-boundary match so `sorryAx` in prose does not trip it.
       - name: Reject 'sorry' in the trusted tree

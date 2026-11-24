@@ -64,6 +64,7 @@ verdict. See [`docs/TCB.md`](docs/TCB.md) and the audit command above.
 - [`docs/certcore-roadmap.md`](docs/certcore-roadmap.md) — the *when*; it governs scheduling
 - [`docs/THEOREMS.md`](docs/THEOREMS.md) — the theorem contract, T1–T10
 - [`docs/certificate-v1.md`](docs/certificate-v1.md) — the wire format
+- [`docs/imp-syntax.md`](docs/imp-syntax.md) — the `.imp` surface syntax
 - [`docs/NONGOALS.md`](docs/NONGOALS.md) — the scope fence
 - [`docs/known-gaps.md`](docs/known-gaps.md) — anything not proved, documented
 - [`docs/prior-art.md`](docs/prior-art.md) — what is borrowed, what is ours
@@ -79,6 +80,7 @@ $ lake env lean lean/Tests/Eval.lean             # evaluation checks
 $ lake env lean lean/Tests/Step.lean             # CFG/step checks
 $ lake env lean lean/Tests/Run.lean              # run/Safe checks
 $ lake env lean lean/Tests/Edges.lean            # edge-projection checks
+$ lake env lean lean/Tests/Examples.lean         # example-program checks
 $ grep -rnE '\bsorry\b' lean --include='*.lean'  # must print nothing
 $ lake env lean lean/CertCore/Audit.lean         # must be silent
 ```
