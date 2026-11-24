@@ -10,7 +10,7 @@ Status values: `todo` · `in-progress` · `proved` · `post-month`.
 | ID | Statement | Role | Difficulty | Status | Milestone | Lean file |
 |---|---|---|---|---|---|---|
 | **T1** | `step_det : step cfg p s = some c₁ → step cfg p s = some c₂ → c₁ = c₂` (configurations, not just states) | Semantics sanity | Low | **proved** | M1.9 | `Semantics.lean` |
-| **T2** | `safe_iff : Safe s ↔ ∀ n, run n s ≠ none` | Removes coinduction; every later proof is an ordinary induction | Low | todo | M1.10 | `Semantics.lean` |
+| **T2** | `safe_iff : Safe cfg s ↔ ¬ ∃ n, run cfg n cfg.entry s = none` (no failing prefix exists), with `safe_iff_exists : Safe ↔ ∀ n, ∃ c, run … = some c` | Removes coinduction; every later proof is an ordinary induction on steps | Low | **proved** | M1.10 | `Semantics.lean` |
 | **T3** | `run_sound : s ∈ γ a → run n s = some s' → s' ∈ γ (transferStar n a)` | Lifts transfer soundness to traces | Medium | todo | M3 | `Proofs.lean` |
 | **T4** | Per domain: `ble_sound`, `join_sound`, `transfer_sound`, `top_sound`, and `entails_sound` for the safety-predicate test | Domain instances; intervals in-month | Medium | todo | M2 | `Domain/Interval.lean` |
 | **T5** | **`check_sound : check D p c = .ok → Safe p`** | **The kernel theorem** | **Medium** | todo | M3.7 | `Check.lean` |
@@ -42,6 +42,12 @@ Status values: `todo` · `in-progress` · `proved` · `post-month`.
   the plan expected now lives in `eval_det` (M1.5) and in deterministic
   compilation (M1.6); this is recorded here so the narrower statement is visible
   rather than silently swapped.
+- **T2's statement also moved.** `Safe` is *defined* in M1.7 as the finite-prefix
+  property, so the plan's literal `Safe ↔ ∀ n, run n ≠ none` is `Iff.rfl`. T2 is
+  the equivalent formulation the project uses — no fuel has a failing run
+  (`¬ ∃ n, run n = none`), plus the finite-prefix form
+  (`∀ n, ∃ c, run n = some c`). The induction escape hatch is the definition
+  itself: later proofs induct on the step count, never on a coinductive tree.
 - **T4 carries one operation the plan's sketch omits.** Safety cannot be a `ble`
   call (`{x ≠ 0}` is not one interval), so each domain supplies a sound
   entailment test for safety predicates. Rationale and consequences are in

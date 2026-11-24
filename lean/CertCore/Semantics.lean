@@ -7,8 +7,8 @@ Abstract syntax, configurations, the fuel-indexed deterministic small-step
 semantics, and the safety predicate `Safe`.
 
 Status: **syntax, state, evaluation, step, run/Safe and edges complete
-(M1.2–M1.8); T1 proved (M1.9), T2 pending (M1.10)**. This module is inside the
-TCB: a bug here changes what "safe" means (plan §10.1).
+(M1.2–M1.8); T1 and T2 proved (M1.9–M1.10); M1.11 examples pending**. This module
+is inside the TCB: a bug here changes what "safe" means (plan §10.1).
 
 Implemented:
 
@@ -619,6 +619,36 @@ theorem safe_iff_isSome {cfg : CFG} {s : State} :
     exact Option.isSome_iff_ne_none.mpr (h n)
   · intro h n
     exact Option.isSome_iff_ne_none.mp (h n)
+
+/-- **T2 — safety as the absence of a failing prefix.**
+
+`Safe` is *defined* as the finite-prefix property (`∀ n, run n ≠ none`), so the
+plan's literal `Safe ↔ ∀ n, run n ≠ none` would be `Iff.rfl`. This is the
+equivalent statement the project actually uses: there is no fuel at which a run
+fails. The induction escape hatch is the definition itself — every later proof is
+an ordinary induction on the step count, never a coinductive argument. The change
+of statement is recorded in `docs/THEOREMS.md`. -/
+theorem safe_iff {cfg : CFG} {s : State} :
+    Safe cfg s ↔ ¬ ∃ n, run cfg n cfg.entry s = none := by
+  constructor
+  · intro h hbad
+    rcases hbad with ⟨n, hn⟩
+    exact h n hn
+  · intro h n hn
+    exact h ⟨n, hn⟩
+
+/-- The finite-prefix form: every amount of fuel yields a configuration. -/
+theorem safe_iff_exists {cfg : CFG} {s : State} :
+    Safe cfg s ↔ ∀ n, ∃ c, run cfg n cfg.entry s = some c := by
+  constructor
+  · intro h n
+    cases hrun : run cfg n cfg.entry s with
+    | none => exact absurd hrun (h n)
+    | some c => exact ⟨c, rfl⟩
+  · intro h n
+    rcases h n with ⟨c, hc⟩
+    rw [hc]
+    simp
 
 end CFG
 
