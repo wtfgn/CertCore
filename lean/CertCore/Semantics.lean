@@ -6,9 +6,9 @@ import CertCore.I32
 Abstract syntax, configurations, the fuel-indexed deterministic small-step
 semantics, and the safety predicate `Safe`.
 
-Status: **syntax, state, evaluation, CFG step and fuel-indexed run complete
-(M1.2–M1.7); `edges`, T1 and T2 pending (M1.8–M1.10)**. This module is inside the
-TCB: a bug here changes what "safe" means (plan §10.1).
+Status: **syntax, state, evaluation, step, run/Safe and edges complete
+(M1.2–M1.8); T1 and T2 pending (M1.9–M1.10)**. This module is inside the TCB: a
+bug here changes what "safe" means (plan §10.1).
 
 Implemented:
 
@@ -32,11 +32,12 @@ Implemented:
 * `CFG.run`, `CFG.Safe`, `Program.safe` (M1.7) — fuel-indexed iteration of `step`;
   `Safe` quantifies over every finite number of steps, so diverging runs and the
   halt stutter are safe and fuel exhaustion is not failure.
+* `EdgeCmd`, `Edge`, `Instr.edgesAt`, `CFG.edges` (M1.8) — the checker-facing
+  projection: atomic edges plus `assume` edges carrying a branch's guard
+  polarity, in ascending point order, with membership lemmas for the kernel proof.
 
 Pending:
 
-* `edges` (M1.8) — the checker-facing `(Point, command, Point)` projection of
-  `CFG.instrs`.
 * T1 `step_det` (M1.9), T2 `safe_iff` (M1.10).
 * `edges` (M1.8), T1 `step_det` (M1.9), T2 `safe_iff` (M1.10).
 
@@ -48,6 +49,16 @@ Pending:
 * **`Program.safe` pairs the compiled machine with `State.init`**, so the
   program-level theorem (T5) will be about the program's initial state; the
   state-general `CFG.Safe` stays available for the trace lemmas.
+
+* **Edges are recomputed, never supplied.** `CFG.edges` is the checker's view of
+  the compiled graph: the analyzer's certificate carries states, not edges, so a
+  hostile certificate cannot invent a successor set. Branch guards become
+  `assume b true` / `assume b false` edges, which is also where the domain's
+  guard refinement will attach (M2.6).
+* **One branch is one step, two edges.** `CFG.step` evaluates the condition and
+  moves to one side; the projection then contains both possible edges, and the
+  checker must discharge an obligation for each. The two views agree by
+  `mem_edges_branch_true` / `mem_edges_branch_false`.
 
 Decisions that matter later:
 
@@ -596,6 +607,95 @@ theorem safe_iff_isSome {cfg : CFG} {s : State} :
     exact Option.isSome_iff_ne_none.mpr (h n)
   · intro h n
     exact Option.isSome_iff_ne_none.mp (h n)
+
+end CFG
+
+/-! ## Edges (M1.8) -/
+
+/-- The command on a checker-facing edge: either an atomic action, or a guard
+assumption recording which way a branch was taken.
+
+`assume b true` means the edge is taken when `b` evaluates to `true`; `assume b
+false` means when it evaluates to `false`. These are what the checker's transfer
+function refines on, and they are why a branch needs no target-dependent
+transfer. -/
+inductive EdgeCmd : Type where
+  /-- An atomic action. -/
+  | atomic (cmd : AtomicCmd)
+  /-- A branch guard: the edge is taken when `b` is `positive`. -/
+  | assume (b : BExp) (positive : Bool)
+  deriving DecidableEq, Repr
+
+/-- A checker-facing edge `(p, cmd, q)`: the checker's obligations are indexed by
+these. -/
+structure Edge : Type where
+  /-- Source point. -/
+  src : Point
+  /-- Command executed on the edge. -/
+  cmd : EdgeCmd
+  /-- Target point. -/
+  dst : Point
+  deriving DecidableEq, Repr
+
+namespace Instr
+
+/-- The edges emitted by one instruction at point `p`: one for an atomic action,
+two for a branch (guard true and guard false). -/
+def edgesAt (p : Point) : Instr → List Edge
+  | .atomic cmd next => [{ src := p, cmd := .atomic cmd, dst := next }]
+  | .branch b t e =>
+      [{ src := p, cmd := .assume b true, dst := t },
+       { src := p, cmd := .assume b false, dst := e }]
+
+end Instr
+
+namespace CFG
+
+/-- All edges of the compiled graph, in ascending point order. The checker
+recomputes this from the AST; the analyzer never supplies it.
+
+Every point in the instruction array contributes its edges, including the halt
+point (a `skip` self-loop), so the projection covers the whole graph. -/
+def edges (cfg : CFG) : List Edge :=
+  List.flatMap
+    (fun p =>
+      match cfg.instrAt p with
+      | none => []
+      | some i => i.edgesAt p)
+    (List.range cfg.instrs.size)
+
+/-- A point at which `instrAt` returns an instruction is inside the array. -/
+theorem instrAt_lt {cfg : CFG} {p : Point} {i : Instr} (h : cfg.instrAt p = some i) :
+    p < cfg.instrs.size := by
+  unfold instrAt at h
+  by_cases hp : p < cfg.instrs.size
+  · exact hp
+  · simp [hp] at h
+
+/-- An edge emitted by the instruction at `p` is an edge of the graph. -/
+theorem mem_edges_of_mem_edgesAt {cfg : CFG} {p : Point} {i : Instr} {e : Edge}
+    (hi : cfg.instrAt p = some i) (he : e ∈ i.edgesAt p) : e ∈ cfg.edges := by
+  unfold edges
+  rw [List.mem_flatMap]
+  exact ⟨p, List.mem_range.mpr (instrAt_lt hi), by simp [hi, he]⟩
+
+/-- The edge of an atomic instruction is an edge of the graph. -/
+theorem mem_edges_atomic {cfg : CFG} {p : Point} {cmd : AtomicCmd} {next : Point}
+    (h : cfg.instrAt p = some (.atomic cmd next)) :
+    ({ src := p, cmd := .atomic cmd, dst := next } : Edge) ∈ cfg.edges :=
+  mem_edges_of_mem_edgesAt h (by simp [Instr.edgesAt])
+
+/-- The guard-true edge of a branch is an edge of the graph. -/
+theorem mem_edges_branch_true {cfg : CFG} {p : Point} {b : BExp} {t e : Point}
+    (h : cfg.instrAt p = some (.branch b t e)) :
+    ({ src := p, cmd := .assume b true, dst := t } : Edge) ∈ cfg.edges :=
+  mem_edges_of_mem_edgesAt h (by simp [Instr.edgesAt])
+
+/-- The guard-false edge of a branch is an edge of the graph. -/
+theorem mem_edges_branch_false {cfg : CFG} {p : Point} {b : BExp} {t e : Point}
+    (h : cfg.instrAt p = some (.branch b t e)) :
+    ({ src := p, cmd := .assume b false, dst := e } : Edge) ∈ cfg.edges :=
+  mem_edges_of_mem_edgesAt h (by simp [Instr.edgesAt])
 
 end CFG
 
