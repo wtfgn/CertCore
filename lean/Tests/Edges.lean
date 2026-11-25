@@ -55,3 +55,31 @@ def divProg : Program :=
   { body := .assign 0 "y" (.div (.const (c 10)) (.var "x")), arrays := #[] }
 
 #guard (Program.compile divProg).edges.length = 2
+
+/-! ## F4 — every successful step is one edge of the graph -/
+
+def st : State := State.init sample
+
+#guard (EdgeCmd.exec (.atomic .skip) st).isSome
+#guard (EdgeCmd.exec (.assume (.cmp .lt (.const (c 0)) (.const (c 1))) true) st).isSome
+#guard (EdgeCmd.exec (.assume (.cmp .lt (.const (c 0)) (.const (c 1))) false) st).isNone
+
+-- The guard-true branch at point 1 goes to 2, and the edge effect leaves the
+-- state unchanged; `step_edge` finds exactly that edge.
+example : ∃ e ∈ cfg.edges, e.src = 1 ∧ e.dst = 2 ∧ e.cmd.exec st = some st :=
+  CFG.step_edge (cfg := cfg) (p := 1) (s := st) (q := 2) (s' := st) rfl
+
+-- The guard-false branch goes to 3 with x = 2.
+example : ∃ e ∈ cfg.edges, e.src = 1 ∧ e.dst = 3 ∧
+    e.cmd.exec (st.set "x" (c 2)) = some (st.set "x" (c 2)) :=
+  CFG.step_edge (cfg := cfg) (p := 1) (s := st.set "x" (c 2))
+    (q := 3) (s' := st.set "x" (c 2)) rfl
+
+-- An atomic `skip` also projects to its edge.
+def skipProg : Program := { body := .skip 0, arrays := #[] }
+def skipCfg : CFG := Program.compile skipProg
+
+example : ∃ e ∈ skipCfg.edges, e.src = 0 ∧ e.dst = 1 ∧
+    e.cmd.exec (State.init skipProg) = some (State.init skipProg) :=
+  CFG.step_edge (cfg := skipCfg) (p := 0) (s := State.init skipProg)
+    (q := 1) (s' := State.init skipProg) rfl
