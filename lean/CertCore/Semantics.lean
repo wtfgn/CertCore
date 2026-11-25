@@ -735,12 +735,6 @@ theorem mem_edges_branch_false {cfg : CFG} {p : Point} {b : BExp} {t e : Point}
     ({ src := p, cmd := .assume b false, dst := e } : Edge) ∈ cfg.edges :=
   mem_edges_of_mem_edgesAt h (by simp [Instr.edgesAt])
 
-def loopTail : Program :=
-  { body := .while 0 (.cmp .lt (.const 0) (.const 1))
-            (.assign 5 "x" (.const 1))
-  , arrays := #[] 
-  }
-
 end CFG
 
 end CertCore
