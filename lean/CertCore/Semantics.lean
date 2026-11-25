@@ -467,7 +467,7 @@ namespace CFG
 
 /-- The instruction at a point, if the point is inside the array. -/
 def instrAt (cfg : CFG) (p : Point) : Option Instr :=
-  if p < cfg.instrs.size then some (cfg.instrs.getD p (.atomic .skip p)) else none
+  if h : p < cfg.instrs.size then some cfg.instrs[p] else none
 
 end CFG
 
