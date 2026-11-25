@@ -80,6 +80,7 @@ $ lake env lean lean/Tests/Eval.lean             # evaluation checks
 $ lake env lean lean/Tests/Step.lean             # CFG/step checks
 $ lake env lean lean/Tests/Run.lean              # run/Safe checks
 $ lake env lean lean/Tests/Edges.lean            # edge-projection checks
+$ lake env lean lean/Tests/Compile.lean          # maxPoint + CFG well-formedness
 $ lake env lean lean/Tests/Examples.lean         # example-program checks
 $ grep -rnE '\bsorry\b' lean --include='*.lean'  # must print nothing
 $ lake env lean lean/CertCore/Audit.lean         # must be silent
