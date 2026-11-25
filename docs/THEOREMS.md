@@ -59,6 +59,12 @@ Status values: `todo` · `in-progress` · `proved` · `post-month`.
   inside the array. T5 uses this to rule out a "missing instruction" failure
   that no certificate can discharge. It lives in `Semantics.lean` and is
   exercised by `Tests/Compile.lean`.
+- **`step_edge` is the operational/edge bridge, not a numbered theorem.** It
+  states that every successful `step` corresponds to an edge in `cfg.edges`
+  whose `EdgeCmd.exec` effect produces the same state. This is what lets T5
+  turn an edge-indexed obligation into a fact about the transition `step`
+  actually took. It lives in `Semantics.lean` and is exercised by
+  `Tests/Edges.lean`.
 - **No theorem ships with `sorry`.** If a lemma must be deferred, it goes in
   [`known-gaps.md`](known-gaps.md) and the branch does not merge.
 - The audit command and its expected footprint are in [`TCB.md`](TCB.md).
