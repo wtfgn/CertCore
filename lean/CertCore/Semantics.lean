@@ -85,7 +85,7 @@ Decisions that matter later:
   only if the language should match C.
 * Every command that *does* something at a point carries that point:
   `skip`, `assign`, `store`, `assert`, `if`, `while`. `seq` carries none; it is
-  pure control. The entry point is derived (`Cmd.entry?`), not stored, so a
+  pure control. The entry point is derived (`Cmd.entry`), not stored, so a
   program cannot disagree with itself about where it starts.
 * **Semantics decision (reviewed at M1.3, realised at M1.6).** This is the
   structured *source* AST; the operational semantics is **edge-based**.
@@ -452,6 +452,20 @@ inductive Instr : Type where
   | branch (b : BExp) (then_ else_ : Point)
   deriving DecidableEq, Repr
 
+namespace Instr
+
+/-- Every successor point of an instruction lies inside `[0, n)`.
+
+This is the instruction-level half of CFG well-formedness: the machine never
+jumps outside its own instruction array, so `step` can only fail on a language
+hazard, not on a missing successor. -/
+def targetsLt (i : Instr) (n : Nat) : Prop :=
+  match i with
+  | .atomic _ next => next < n
+  | .branch _ t e => t < n ∧ e < n
+
+end Instr
+
 /-- A compiled control-flow graph: an entry point and an instruction array
 indexed by program point. The halt point is one past the largest program point
 and holds a self-looping `skip`, so termination is a safe stutter, never a
@@ -468,6 +482,24 @@ namespace CFG
 /-- The instruction at a point, if the point is inside the array. -/
 def instrAt (cfg : CFG) (p : Point) : Option Instr :=
   if h : p < cfg.instrs.size then some cfg.instrs[p] else none
+
+/-- A well-formed CFG has its entry inside the instruction array, and every
+instruction it can fetch has all successors inside the array.
+
+`Program.compile_wf` shows that compilation always produces a well-formed CFG.
+The predicate is the hypothesis T5 needs: without it, a successful `step` could
+land on an out-of-range point, and the next `step` would fail for a reason no
+certificate can rule out. -/
+def WF (cfg : CFG) : Prop :=
+  cfg.entry < cfg.instrs.size ∧
+  ∀ (p : Point) (i : Instr), cfg.instrAt p = some i → i.targetsLt cfg.instrs.size
+
+/-- The instruction returned by `instrAt` is the array's element at that point. -/
+theorem instrAt_getElem {cfg : CFG} {p : Point} {i : Instr}
+    (h : cfg.instrAt p = some i) (hp : p < cfg.instrs.size) :
+    cfg.instrs[p] = i := by
+  unfold instrAt at h
+  simpa [hp] using h
 
 end CFG
 
@@ -511,6 +543,169 @@ def compile : Cmd → Point → Array Instr → Array Instr
   | .seq a b, k, instrs =>
       compile a (b.entry) (compile b k instrs)
 
+/-- `place` never changes the instruction array's size. -/
+theorem place_size (instrs : Array Instr) (p : Point) (i : Instr) :
+    (place instrs p i).size = instrs.size := by
+  unfold place
+  split
+  · simp [Array.size_set]
+  · rfl
+
+/-- `place` preserves "all instructions have successors in range", provided the
+instruction being written satisfies it. -/
+theorem place_targetsLt {instrs : Array Instr} {n : Nat} {p : Point} {i : Instr}
+    (hinv : ∀ (q : Point) (h : q < instrs.size), (instrs[q]).targetsLt n)
+    (hi : i.targetsLt n) :
+    ∀ (q : Point) (h : q < (place instrs p i).size),
+      ((place instrs p i)[q]).targetsLt n := by
+  intro q hq
+  by_cases hp : p < instrs.size
+  · have hq' : q < (instrs.set p i hp).size := by
+      simpa [place, hp] using hq
+    have hq'' : q < instrs.size := by
+      simpa [Array.size_set hp] using hq'
+    by_cases hqp : q = p
+    · subst q
+      have hplace : (place instrs p i)[p] = i := by
+        simp [place, hp]
+      rw [hplace]
+      exact hi
+    · have hplace : (place instrs p i)[q] = instrs[q] := by
+        simpa [place, hp] using
+          (Array.getElem_set_ne (h' := hp) (pj := hq'')
+            (h := fun hpq => hqp hpq.symm))
+      rw [hplace]
+      exact hinv q hq''
+  · have hq' : q < instrs.size := by
+      simpa [place, hp] using hq
+    simpa [place, hp] using hinv q hq'
+
+/-- A command's entry point is at most its largest point. This is the bridge
+between `entry` (where execution starts) and `maxPoint` (how large the
+instruction array must be). -/
+theorem entry_le_maxPoint : ∀ {c : Cmd}, c.entry ≤ c.maxPoint
+  | .skip _ => Nat.le_refl _
+  | .assign _ _ _ => Nat.le_refl _
+  | .store _ _ _ _ => Nat.le_refl _
+  | .assert _ _ => Nat.le_refl _
+  | .ite _ _ _ _ => Nat.le_max_left _ _
+  | .while _ _ _ => Nat.le_max_left _ _
+  | .seq a _ => Nat.le_trans (entry_le_maxPoint (c := a)) (Nat.le_max_left _ _)
+
+/-- Compilation never changes the instruction array's size. -/
+theorem compile_size : ∀ (c : Cmd) (k : Point) (instrs : Array Instr),
+    (compile c k instrs).size = instrs.size
+  | .skip p, k, instrs => by
+      simp [compile, place_size]
+  | .assign p x e, k, instrs => by
+      simp [compile, place_size]
+  | .store p a i v, k, instrs => by
+      simp [compile, place_size]
+  | .assert p b, k, instrs => by
+      simp [compile, place_size]
+  | .ite p b t e, k, instrs => by
+      dsimp [compile]
+      rw [compile_size t k (compile e k (place instrs p (.branch b t.entry e.entry)))]
+      rw [compile_size e k (place instrs p (.branch b t.entry e.entry))]
+      exact place_size instrs p (.branch b t.entry e.entry)
+  | .while p b body, k, instrs => by
+      dsimp [compile]
+      rw [compile_size body p (place instrs p (.branch b body.entry k))]
+      exact place_size instrs p (.branch b body.entry k)
+  | .seq a b, k, instrs => by
+      dsimp [compile]
+      rw [compile_size a b.entry (compile b k instrs)]
+      rw [compile_size b k instrs]
+
+/-- Compilation preserves the invariant that every instruction's successors are
+inside the array, for an array of size `n` that already satisfies it. -/
+theorem compile_targetsLt {c : Cmd} {k : Point} {instrs : Array Instr} {n : Nat}
+    (hsize : instrs.size = n)
+    (hinv : ∀ (q : Point) (h : q < instrs.size), (instrs[q]).targetsLt n)
+    (hk : k < n)
+    (hbound : c.maxPoint < n) :
+    ∀ (q : Point) (h : q < (compile c k instrs).size),
+      ((compile c k instrs)[q]).targetsLt n := by
+  induction c generalizing k instrs with
+  | skip p =>
+      simpa [compile] using
+        (place_targetsLt (instrs := instrs) (n := n) (p := p)
+          (i := .atomic .skip k) hinv hk)
+  | assign p x e =>
+      simpa [compile] using
+        (place_targetsLt (instrs := instrs) (n := n) (p := p)
+          (i := .atomic (.assign x e) k) hinv hk)
+  | store p a i v =>
+      simpa [compile] using
+        (place_targetsLt (instrs := instrs) (n := n) (p := p)
+          (i := .atomic (.store a i v) k) hinv hk)
+  | assert p b =>
+      simpa [compile] using
+        (place_targetsLt (instrs := instrs) (n := n) (p := p)
+          (i := .atomic (.assert b) k) hinv hk)
+  | ite p b t e iht ihe =>
+      have hbound' : max p (max t.maxPoint e.maxPoint) < n := by
+        simpa [maxPoint] using hbound
+      have hte : max t.maxPoint e.maxPoint < n :=
+        Nat.lt_of_le_of_lt (Nat.le_max_right p (max t.maxPoint e.maxPoint)) hbound'
+      have htn : t.maxPoint < n := Nat.lt_of_le_of_lt (Nat.le_max_left _ _) hte
+      have hen : e.maxPoint < n := Nat.lt_of_le_of_lt (Nat.le_max_right _ _) hte
+      let instrs1 : Array Instr := place instrs p (.branch b t.entry e.entry)
+      have hsize1 : instrs1.size = n := by
+        dsimp [instrs1]
+        rw [place_size, hsize]
+      have hinv1 : ∀ (q : Point) (h : q < instrs1.size),
+          (instrs1[q]).targetsLt n := by
+        dsimp [instrs1]
+        exact place_targetsLt hinv (by
+          simp [Instr.targetsLt]
+          exact ⟨Nat.lt_of_le_of_lt (entry_le_maxPoint (c := t)) htn,
+                 Nat.lt_of_le_of_lt (entry_le_maxPoint (c := e)) hen⟩)
+      have hsize2 : (compile e k instrs1).size = n := by
+        rw [compile_size, hsize1]
+      have hinv2 : ∀ (q : Point) (h : q < (compile e k instrs1).size),
+          ((compile e k instrs1)[q]).targetsLt n :=
+        ihe (k := k) (instrs := instrs1) hsize1 hinv1 hk hen
+      have hres := iht (k := k) (instrs := compile e k instrs1) hsize2 hinv2 hk htn
+      change ∀ (q : Point) (h : q < (compile t k (compile e k instrs1)).size),
+        ((compile t k (compile e k instrs1))[q]).targetsLt n
+      exact hres
+  | «while» p b body ih =>
+      have hbound' : max p body.maxPoint < n := by
+        simpa [maxPoint] using hbound
+      have hpn : p < n := Nat.lt_of_le_of_lt (Nat.le_max_left p body.maxPoint) hbound'
+      have hbn : body.maxPoint < n :=
+        Nat.lt_of_le_of_lt (Nat.le_max_right p body.maxPoint) hbound'
+      let instrs1 : Array Instr := place instrs p (.branch b body.entry k)
+      have hsize1 : instrs1.size = n := by
+        dsimp [instrs1]
+        rw [place_size, hsize]
+      have hinv1 : ∀ (q : Point) (h : q < instrs1.size),
+          (instrs1[q]).targetsLt n := by
+        dsimp [instrs1]
+        exact place_targetsLt hinv (by
+          simp [Instr.targetsLt]
+          exact ⟨Nat.lt_of_le_of_lt (entry_le_maxPoint (c := body)) hbn, hk⟩)
+      have hres := ih (k := p) (instrs := instrs1) hsize1 hinv1 hpn hbn
+      change ∀ (q : Point) (h : q < (compile body p instrs1).size),
+        ((compile body p instrs1)[q]).targetsLt n
+      exact hres
+  | seq a b iha ihb =>
+      have hbound' : max a.maxPoint b.maxPoint < n := by
+        simpa [maxPoint] using hbound
+      have han : a.maxPoint < n := Nat.lt_of_le_of_lt (Nat.le_max_left _ _) hbound'
+      have hbn : b.maxPoint < n := Nat.lt_of_le_of_lt (Nat.le_max_right _ _) hbound'
+      have hres_b := ihb (k := k) (instrs := instrs) hsize hinv hk hbn
+      have hsize_b : (compile b k instrs).size = n := by
+        rw [compile_size, hsize]
+      have hk' : b.entry < n :=
+        Nat.lt_of_le_of_lt (entry_le_maxPoint (c := b)) hbn
+      have hres_a := iha (k := b.entry) (instrs := compile b k instrs)
+        hsize_b hres_b hk' han
+      change ∀ (q : Point) (h : q < (compile a b.entry (compile b k instrs)).size),
+        ((compile a b.entry (compile b k instrs))[q]).targetsLt n
+      exact hres_a
+
 end Cmd
 
 /-- Compile a program to a CFG.
@@ -524,6 +719,58 @@ def Program.compile (p : Program) : CFG :=
   let instrs : Array Instr := Array.replicate (halt + 1) (.atomic .skip halt)
   { entry := p.body.entry,
     instrs := Cmd.compile p.body halt instrs }
+
+/-- **F2 — compiled CFGs are well formed.**
+
+The entry is inside the instruction array, and every instruction the machine can
+fetch sends control to a point inside the array. This is the hypothesis T5 needs:
+without it, a successful `step` could land on a missing instruction and the next
+`step` would fail for a reason no certificate can discharge.
+
+The proof is the array-size bound (`maxPoint` covers every point, `place` writes
+inside the array) plus the target bound (every continuation and branch target is
+either a sub-command entry or the halt point). -/
+theorem Program.compile_wf (p : Program) : (Program.compile p).WF := by
+  let halt : Point := p.body.maxPoint + 1
+  let instrs : Array Instr := Array.replicate (halt + 1) (.atomic .skip halt)
+  have hbound : p.body.maxPoint < instrs.size := by
+    simp [instrs, halt]
+    omega
+  have hk : halt < instrs.size := by
+    simp [instrs, halt]
+  have hinv : ∀ (q : Point) (h : q < instrs.size),
+      (instrs[q]).targetsLt instrs.size := by
+    intro q hq
+    have hq' : q < (Array.replicate (halt + 1) (Instr.atomic AtomicCmd.skip halt)).size := by
+      simpa [instrs] using hq
+    rw [Array.getElem_replicate (h := hq')]
+    simp [Instr.targetsLt, instrs, halt]
+  have hcomp := Cmd.compile_targetsLt (c := p.body) (k := halt) (instrs := instrs)
+    (n := instrs.size) rfl hinv hk hbound
+  constructor
+  · simpa [Program.compile, instrs, halt, Cmd.compile_size] using
+      (Nat.lt_of_le_of_lt (Cmd.entry_le_maxPoint (c := p.body)) hbound)
+  · intro q i hi
+    have hq : q < (Program.compile p).instrs.size := by
+      by_cases hq : q < (Program.compile p).instrs.size
+      · exact hq
+      · have hnone : (Program.compile p).instrAt q = none := by
+          simp [CFG.instrAt, hq]
+        rw [hnone] at hi
+        simp at hi
+    have hget : (Program.compile p).instrs[q] = i :=
+      CFG.instrAt_getElem hi hq
+    have hq'' : q < (Cmd.compile p.body halt instrs).size := by
+      simpa [Program.compile, instrs, halt] using hq
+    have hq' : q < instrs.size := by
+      simpa [Cmd.compile_size] using hq''
+    have htarget : i.targetsLt (Program.compile p).instrs.size := by
+      have h := hcomp q hq''
+      have h2 : (Cmd.compile p.body halt instrs)[q] = i := by
+        simpa [Program.compile, instrs, halt] using hget
+      rw [h2] at h
+      simpa [Program.compile, instrs, halt, Cmd.compile_size] using h
+    exact htarget
 
 namespace CFG
 
@@ -685,6 +932,23 @@ def edgesAt (p : Point) : Instr → List Edge
       [{ src := p, cmd := .assume b true, dst := t },
        { src := p, cmd := .assume b false, dst := e }]
 
+/-- Every edge emitted by an instruction lands inside `n`. -/
+theorem edgesAt_dst_lt {i : Instr} {n : Nat} {p : Point}
+    (h : i.targetsLt n) : ∀ edge ∈ i.edgesAt p, edge.dst < n := by
+  intro edge he
+  cases i with
+  | atomic cmd next =>
+      simp [edgesAt] at he
+      subst edge
+      simpa [targetsLt] using h
+  | branch b t e =>
+      simp [edgesAt] at he
+      rcases he with rfl | rfl
+      · have h' : t < n ∧ e < n := by simpa [targetsLt] using h
+        exact h'.1
+      · have h' : t < n ∧ e < n := by simpa [targetsLt] using h
+        exact h'.2
+
 end Instr
 
 namespace CFG
@@ -701,6 +965,21 @@ def edges (cfg : CFG) : List Edge :=
       | none => []
       | some i => i.edgesAt p)
     (List.range cfg.instrs.size)
+
+/-- A well-formed CFG's edge projection has no out-of-range destination. This is
+the edge-indexed form of `WF`, convenient for the checker's obligations. -/
+theorem WF.edges_dst_lt {cfg : CFG} (h : cfg.WF) :
+    ∀ e ∈ cfg.edges, e.dst < cfg.instrs.size := by
+  intro e he
+  unfold edges at he
+  rw [List.mem_flatMap] at he
+  rcases he with ⟨p, hp, he⟩
+  have hplt : p < cfg.instrs.size := List.mem_range.mp hp
+  cases hi : cfg.instrAt p with
+  | none => simp [hi] at he
+  | some i =>
+      simp [hi] at he
+      exact Instr.edgesAt_dst_lt (h.2 p i hi) e he
 
 /-- A point at which `instrAt` returns an instruction is inside the array. -/
 theorem instrAt_lt {cfg : CFG} {p : Point} {i : Instr} (h : cfg.instrAt p = some i) :
