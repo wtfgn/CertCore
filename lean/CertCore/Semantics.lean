@@ -480,8 +480,8 @@ def maxPoint : Cmd → Nat
   | .assign p _ _ => p
   | .store p _ _ _ => p
   | .assert p _ => p
-  | .ite p _ _ _ => p
-  | .while p _ _ => p
+  | .ite p _ t e => max p (max t.maxPoint e.maxPoint)
+  | .while p _ body => max p body.maxPoint
   | .seq a b => max a.maxPoint b.maxPoint
 
 /-- Write one instruction at its point, if the point is inside the allocated
@@ -740,11 +740,6 @@ def loopTail : Program :=
             (.assign 5 "x" (.const 1))
   , arrays := #[] 
   }
-
-#eval (Program.compile loopTail).instrs
-#eval (loopTail.body.maxPoint)
-#eval (Program.compile loopTail).edges
-
 
 end CFG
 

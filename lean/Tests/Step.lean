@@ -91,3 +91,10 @@ def stOk : State := State.init storeOk
 #guard pointOf (step (Program.compile storeOk) 0 stOk) = some 1
 #guard (step (Program.compile storeOk) 0 stOk).map
          (fun r => (r.2.memAt 0).getD 1 I32.zero) = some (c 42)
+
+-- max point should work for non-consecutive program counter
+def b : BExp := .cmp .lt (.const 0) (.const 1)
+#guard Cmd.maxPoint (.while 0 b (.skip 5)) = 5
+#guard Cmd.maxPoint (.ite 0 b (.skip 5) (.skip 6)) = 6
+-- and, for every compiled test program:
+#guard cfg.edges.all (fun e => e.dst < cfg.instrs.size)
