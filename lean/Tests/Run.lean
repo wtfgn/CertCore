@@ -58,3 +58,8 @@ example : ¬ CFG.Safe (Program.compile divProg) st := by
 -- The `isSome` characterisation of safety is the unfolding of the definition.
 example : CFG.Safe cfg st ↔ ∀ n, (run cfg n cfg.entry st).isSome = true :=
   CFG.safe_iff_isSome
+
+-- F3: `Program.safe` is a program-level predicate, accessible by dot notation.
+example (p : Program) : Prop := p.safe
+example (p : Program) : p.safe ↔ CFG.Safe (Program.compile p) (State.init p) :=
+  Iff.rfl
