@@ -830,9 +830,6 @@ safety violation. This is the plan's `Safe s := ∀ n, run n s ≠ none`, with t
 program's entry point and compiled machine made explicit. -/
 def Safe (cfg : CFG) (s : State) : Prop := ∀ n, run cfg n cfg.entry s ≠ none
 
-/-- A program is safe when its compiled machine is safe from the initial state. -/
-def Program.safe (p : Program) : Prop := CFG.Safe (Program.compile p) (State.init p)
-
 @[simp] theorem run_zero (cfg : CFG) (p : Point) (s : State) :
     run cfg 0 p s = some (p, s) := rfl
 
@@ -894,6 +891,13 @@ theorem safe_iff_exists {cfg : CFG} {s : State} :
     simp
 
 end CFG
+
+namespace Program
+
+/-- A program is safe when its compiled machine is safe from the initial state. -/
+def safe (p : Program) : Prop := CFG.Safe (Program.compile p) (State.init p)
+
+end Program
 
 /-! ## Edges (M1.8) -/
 
