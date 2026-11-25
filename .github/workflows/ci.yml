@@ -83,9 +83,10 @@ jobs:
           fi
           echo "No unproved goals in lean/."
 
-      # M3.8 adds `#print axioms check_sound` to the script; M11.4 turns the
-      # footprint into a gate. At M0 this only proves the script elaborates.
-      - name: Audit script elaborates
+      # M1 audit: prints the footprint of T1/T2, compile_wf, and step_edge.
+      # Every line should be [propext, Quot.sound] or smaller. M3.8 adds
+      # `#print axioms check_sound`; M11.4 turns this into a comparison gate.
+      - name: Axiom audit (M1 footprint)
         run: lake env lean lean/CertCore/Audit.lean
 
   # haskell job: added in M5, once the stack/cabal decision is made.

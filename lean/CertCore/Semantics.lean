@@ -6,9 +6,12 @@ import CertCore.I32
 Abstract syntax, configurations, the fuel-indexed deterministic small-step
 semantics, and the safety predicate `Safe`.
 
-Status: **syntax, state, evaluation, step, run/Safe and edges complete
-(M1.2–M1.8); T1 and T2 proved (M1.9–M1.10); M1.11 examples pending**. This module
-is inside the TCB: a bug here changes what "safe" means (plan §10.1).
+Status: **M1 complete.** Syntax, state, evaluation, the compiled CFG, `step`,
+`run`/`Safe`, the edge projection, the three example fixtures, T1 `step_det`
+(M1.9), T2 `safe_iff` (M1.10), and the well-formedness/bridge lemmas
+`Program.compile_wf` and `CFG.step_edge`. There is no parser, certificate decoder,
+domain instance, or checker yet; those are M2–M4. This module is inside the TCB:
+a bug here changes what "safe" means (plan §10.1).
 
 Implemented:
 
@@ -35,11 +38,18 @@ Implemented:
 * `EdgeCmd`, `Edge`, `Instr.edgesAt`, `CFG.edges` (M1.8) — the checker-facing
   projection: atomic edges plus `assume` edges carrying a branch's guard
   polarity, in ascending point order, with membership lemmas for the kernel proof.
+* `Instr.targetsLt`, `CFG.WF`, `Program.compile_wf` — every compiled CFG has an
+  in-range entry and every instruction successor is inside the instruction array.
+* `EdgeCmd.exec`, `CFG.step_edge` — the effect of a checker edge, and the proof
+  that every successful `step` is one edge of the graph.
+* `CFG.step_det` (T1, M1.9) and `CFG.safe_iff` / `safe_iff_exists` (T2, M1.10).
+* The three `.imp` fixtures (M1.11), hand-encoded in `Tests/Examples.lean`.
 
-Pending:
+Not in M1:
 
-* T1 `step_det` (M1.9), T2 `safe_iff` (M1.10).
-* `edges` (M1.8), T1 `step_det` (M1.9), T2 `safe_iff` (M1.10).
+* M2: `CertDomain` and the interval instance.
+* M3: `check`, the three obligation families, and T5.
+* M4: the parser, the total decoder, and `certcore check`.
 
 * **Fuel exhaustion is not failure.** `run 0` returns the starting
   configuration, and `none` appears only when a step fails. `Safe` is
@@ -58,7 +68,8 @@ Pending:
 * **One branch is one step, two edges.** `CFG.step` evaluates the condition and
   moves to one side; the projection then contains both possible edges, and the
   checker must discharge an obligation for each. The two views agree by
-  `mem_edges_branch_true` / `mem_edges_branch_false`.
+  `mem_edges_branch_true` / `mem_edges_branch_false`; `CFG.step_edge` packages
+  the bridge for T5.
 
 Decisions that matter later:
 
@@ -99,10 +110,12 @@ Decisions that matter later:
   and what the Haskell mirror consumes; the certificate is about the compiled
   graph.
 * **The compiler is trusted.** `Cmd.compile` is small, deterministic and in the
-  TCB; a bug there changes what the program means. It is tested through `step`
-  (`lean/Tests/Step.lean`), and the Haskell mirror will have to agree with it.
-  A malformed program with duplicate points gets last-write-wins; the frontend's
-  point-uniqueness invariant is what makes compilation deterministic in practice.
+  TCB; a bug there changes what the program means. `Program.compile_wf` proves
+  that every compiled CFG has an in-range entry and successors, and
+  `Tests/Compile.lean` pins representative shapes. The Haskell mirror will have
+  to agree with the compiler. A malformed program with duplicate points gets
+  last-write-wins; the frontend's point-uniqueness invariant is what makes
+  compilation deterministic in practice.
 * **Halting is a stutter.** Compilation adds a halt point holding `skip` to
   itself, so termination is never `none`. `none` is reserved for the four hazards
   (plus an out-of-range point, which is a malformed CFG rather than a
@@ -202,7 +215,7 @@ inductive Cmd : Type where
 
 namespace Cmd
 
-/-- The first point executed by a command, if it executes at all.
+/-- The first point executed by a command.
 
 Derived rather than stored: a `Program` cannot disagree with itself about where
 execution starts. `seq` takes the first point of its first component. -/
@@ -233,7 +246,7 @@ structure Program : Type where
 namespace Program
 
 /-- The program's entry point, derived from its body. -/
-def entry (program : Program) : Option Point := program.body.entry
+def entry (program : Program) : Point := program.body.entry
 
 end Program
 
@@ -717,7 +730,7 @@ uniqueness invariant is what makes this deterministic in practice. -/
 def Program.compile (p : Program) : CFG :=
   let halt : Point := p.body.maxPoint + 1
   let instrs : Array Instr := Array.replicate (halt + 1) (.atomic .skip halt)
-  { entry := p.body.entry,
+  { entry := p.entry,
     instrs := Cmd.compile p.body halt instrs }
 
 /-- **F2 — compiled CFGs are well formed.**
@@ -748,7 +761,7 @@ theorem Program.compile_wf (p : Program) : (Program.compile p).WF := by
   have hcomp := Cmd.compile_targetsLt (c := p.body) (k := halt) (instrs := instrs)
     (n := instrs.size) rfl hinv hk hbound
   constructor
-  · simpa [Program.compile, instrs, halt, Cmd.compile_size] using
+  · simpa [Program.compile, Program.entry, instrs, halt, Cmd.compile_size] using
       (Nat.lt_of_le_of_lt (Cmd.entry_le_maxPoint (c := p.body)) hbound)
   · intro q i hi
     have hq : q < (Program.compile p).instrs.size := by

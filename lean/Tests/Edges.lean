@@ -9,7 +9,8 @@ Build-time checks of the M1.8 projection. Run with:
 
 Pins the exact edge list of the running example — ascending point order, one edge
 per atomic instruction, guard-true before guard-false for a branch, and the halt
-self-loop — and checks that the membership lemmas agree with the enumeration.
+self-loop — the membership lemmas, and the F4 `step_edge` bridge (a successful
+step is one edge with the same source, destination, and edge effect).
 -/
 
 open CertCore

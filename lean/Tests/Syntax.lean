@@ -27,7 +27,7 @@ def sample : Program where
               (.store 3 0 (.var "x") (.const (c 42)))))
   arrays := #[10]
 
-#guard Program.entry sample = some 0
+#guard Program.entry sample = 0
 
 -- `seq` takes its first component's entry, recursively.
 #guard Cmd.entry (.seq (.skip 7) (.assign 8 "x" (.const (c 1)))) = 7

@@ -4,7 +4,8 @@
 The `CertDomain` structure and the generic soundness theorem's interface
 (project plan §4.2), plus the `Combinator`/`Encoding` interface of §4.3.
 
-Status: **stub** (M0). Filled in by M2 (interval instance) and M3 (kernel).
+Status: **interface stub** — filled by M2 (interval instance) and M3 (kernel).
+The exact `transfer`/`entails` input is settled at M2; see the M1 review, F5.
 
 Everything in the trusted tree is generic over `CertDomain`; the kernel never
 sees a fixpoint, a widening, or a heuristic. Two design decisions matter:
