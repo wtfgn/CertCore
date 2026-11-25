@@ -538,11 +538,7 @@ def exec (cmd : AtomicCmd) (s : State) : Option State :=
       eval v s >>= fun val =>
         let arr := s.memAt a
         if h : 0 ≤ idx.val ∧ idx.val < (arr.size : Int) then
-          some (s.setMem a (arr.set idx.val.toNat val (by
-            have h1 : 0 ≤ idx.val := h.1
-            have h2 : idx.val < (arr.size : Int) := h.2
-            have h3 : (idx.val.toNat : Int) = idx.val := Int.toNat_of_nonneg h1
-            omega)))
+          some (s.setMem a (arr.set idx.val.toNat val))
         else none
   | .assert b => evalB b s >>= fun v => if v then some s else none
 
