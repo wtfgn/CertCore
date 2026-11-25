@@ -206,14 +206,14 @@ namespace Cmd
 
 Derived rather than stored: a `Program` cannot disagree with itself about where
 execution starts. `seq` takes the first point of its first component. -/
-def entry? : Cmd → Option Point
-  | .skip p => some p
-  | .assign p _ _ => some p
-  | .store p _ _ _ => some p
-  | .assert p _ => some p
-  | .ite p _ _ _ => some p
-  | .while p _ _ => some p
-  | .seq first _ => entry? first
+def entry : Cmd → Point
+  | .skip p => p
+  | .assign p _ _ => p
+  | .store p _ _ _ => p
+  | .assert p _ => p
+  | .ite p _ _ _ => p
+  | .while p _ _ => p
+  | .seq first _ => entry first
 
 end Cmd
 
@@ -233,7 +233,7 @@ structure Program : Type where
 namespace Program
 
 /-- The program's entry point, derived from its body. -/
-def entry? (program : Program) : Option Point := program.body.entry?
+def entry (program : Program) : Option Point := program.body.entry
 
 end Program
 
@@ -503,13 +503,13 @@ def compile : Cmd → Point → Array Instr → Array Instr
   | .store p a i v, k, instrs => place instrs p (.atomic (.store a i v) k)
   | .assert p b, k, instrs => place instrs p (.atomic (.assert b) k)
   | .ite p b t e, k, instrs =>
-      let instrs := place instrs p (.branch b (t.entry?.getD k) (e.entry?.getD k))
+      let instrs := place instrs p (.branch b (t.entry) (e.entry))
       compile t k (compile e k instrs)
   | .while p b body, k, instrs =>
-      let instrs := place instrs p (.branch b (body.entry?.getD k) k)
+      let instrs := place instrs p (.branch b (body.entry) k)
       compile body p instrs
   | .seq a b, k, instrs =>
-      compile a (b.entry?.getD k) (compile b k instrs)
+      compile a (b.entry) (compile b k instrs)
 
 end Cmd
 
@@ -522,7 +522,7 @@ uniqueness invariant is what makes this deterministic in practice. -/
 def Program.compile (p : Program) : CFG :=
   let halt : Point := p.body.maxPoint + 1
   let instrs : Array Instr := Array.replicate (halt + 1) (.atomic .skip halt)
-  { entry := p.body.entry?.getD halt,
+  { entry := p.body.entry,
     instrs := Cmd.compile p.body halt instrs }
 
 namespace CFG
@@ -734,6 +734,17 @@ theorem mem_edges_branch_false {cfg : CFG} {p : Point} {b : BExp} {t e : Point}
     (h : cfg.instrAt p = some (.branch b t e)) :
     ({ src := p, cmd := .assume b false, dst := e } : Edge) ∈ cfg.edges :=
   mem_edges_of_mem_edgesAt h (by simp [Instr.edgesAt])
+
+def loopTail : Program :=
+  { body := .while 0 (.cmp .lt (.const 0) (.const 1))
+            (.assign 5 "x" (.const 1))
+  , arrays := #[] 
+  }
+
+#eval (Program.compile loopTail).instrs
+#eval (loopTail.body.maxPoint)
+#eval (Program.compile loopTail).edges
+
 
 end CFG
 
