@@ -926,6 +926,21 @@ structure Edge : Type where
   dst : Point
   deriving DecidableEq, Repr
 
+namespace EdgeCmd
+
+/-- Execute the effect of a checker edge. An `assume` edge is the identity on
+states when its guard has the required polarity, and fails otherwise.
+
+This is the edge-level counterpart of `CFG.exec`: `step_edge` proves that every
+successful `step` is exactly one edge effect plus a control transfer. It is the
+semantics that `transfer_sound` will be stated against. -/
+def exec : EdgeCmd → State → Option State
+  | .atomic cmd, s => CFG.exec cmd s
+  | .assume b true, s => if evalB b s = some true then some s else none
+  | .assume b false, s => if evalB b s = some false then some s else none
+
+end EdgeCmd
+
 namespace Instr
 
 /-- The edges emitted by one instruction at point `p`: one for an atomic action,
@@ -1017,6 +1032,60 @@ theorem mem_edges_branch_false {cfg : CFG} {p : Point} {b : BExp} {t e : Point}
     (h : cfg.instrAt p = some (.branch b t e)) :
     ({ src := p, cmd := .assume b false, dst := e } : Edge) ∈ cfg.edges :=
   mem_edges_of_mem_edgesAt h (by simp [Instr.edgesAt])
+
+/-- **every successful step is one edge of the graph.**
+
+The step relation and the edge projection are two views of the same machine:
+`step` is deterministic and chooses one instruction; `edges` lists both branch
+outcomes. This theorem says a successful step corresponds to an edge with the
+same source, the same destination, and an edge effect `EdgeCmd.exec` that
+produces the same state. The `assume` cases are the branch-polarity link; the
+`atomic` case is the effect link.
+
+This is the bridge T5 needs: it can turn an edge obligation (indexed by `edges`)
+into a statement about the actual transition taken by `step`. -/
+theorem step_edge {cfg : CFG} {p : Point} {s : State} {q : Point} {s' : State}
+    (h : step cfg p s = some (q, s')) :
+    ∃ e ∈ cfg.edges,
+      e.src = p ∧ e.dst = q ∧ e.cmd.exec s = some s' := by
+  cases hi : cfg.instrAt p with
+  | none => simp [step, hi] at h
+  | some i =>
+      cases i with
+      | atomic cmd nxt =>
+          simp only [step, hi] at h
+          change Option.bind (exec cmd s) (fun s'' => some (nxt, s'')) =
+            some (q, s') at h
+          simp only [Option.bind_eq_some_iff] at h
+          rcases h with ⟨s'', hs'', hsome⟩
+          simp only [Option.some.injEq, Prod.mk.injEq] at hsome
+          rcases hsome with ⟨hnext, hstate⟩
+          refine ⟨{ src := p, cmd := .atomic cmd, dst := nxt }, ?_, rfl, hnext, ?_⟩
+          · exact mem_edges_atomic (by simpa using hi)
+          · simp [EdgeCmd.exec, hs'', hstate]
+      | branch b t e =>
+          simp only [step, hi] at h
+          change Option.bind (evalB b s)
+            (fun v => some ((if v then t else e), s)) = some (q, s') at h
+          simp only [Option.bind_eq_some_iff] at h
+          rcases h with ⟨v, hv, hsome⟩
+          simp only [Option.some.injEq, Prod.mk.injEq] at hsome
+          rcases hsome with ⟨hq, hstate⟩
+          cases v with
+          | false =>
+              refine ⟨{ src := p, cmd := .assume b false, dst := e },
+                ?_, rfl, ?_, ?_⟩
+              · exact mem_edges_branch_false (by simpa using hi)
+              · simpa using hq
+              · simp only [EdgeCmd.exec, hv]
+                exact congrArg some hstate
+          | true =>
+              refine ⟨{ src := p, cmd := .assume b true, dst := t },
+                ?_, rfl, ?_, ?_⟩
+              · exact mem_edges_branch_true (by simpa using hi)
+              · simpa using hq
+              · simp only [EdgeCmd.exec, hv]
+                exact congrArg some hstate
 
 end CFG
 
