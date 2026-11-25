@@ -53,6 +53,12 @@ Status values: `todo` · `in-progress` · `proved` · `post-month`.
   entailment test for safety predicates. Rationale and consequences are in
   [`certificate-v1.md` §12.6](certificate-v1.md); settle the exact interface
   before M2.6.
+- **`Program.compile_wf` is a TCB well-formedness lemma, not a numbered theorem.**
+  It proves `CFG.WF (Program.compile p)`: the entry is inside the instruction
+  array, and every instruction the machine can fetch sends control to a point
+  inside the array. T5 uses this to rule out a "missing instruction" failure
+  that no certificate can discharge. It lives in `Semantics.lean` and is
+  exercised by `Tests/Compile.lean`.
 - **No theorem ships with `sorry`.** If a lemma must be deferred, it goes in
   [`known-gaps.md`](known-gaps.md) and the branch does not merge.
 - The audit command and its expected footprint are in [`TCB.md`](TCB.md).

@@ -37,6 +37,12 @@ The audit covers the proof, not the runtime. Explicitly assumed:
 3. The operating system and hardware behave.
 4. The pinned toolchain is the one that produced the `.olean`/binary being run.
 
+The compiled CFG's **well-formedness** is now proved, not assumed:
+`Program.compile_wf` shows the entry and every instruction successor lie inside
+the instruction array (`Semantics.lean`). The compiler is still trusted for the
+*meaning* of each instruction, but not for array bounds; `Tests/Compile.lean`
+pins the bound on representative program shapes.
+
 Numbers (1) and (2) are the honest residual risk of any Lean artifact; they are
 named here rather than hidden. `#print axioms` cannot see them.
 
