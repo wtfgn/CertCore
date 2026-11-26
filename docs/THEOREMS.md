@@ -49,8 +49,8 @@ Status values: `todo` · `in-progress` · `proved` · `post-month`.
   (`∀ n, ∃ c, run n = some c`). The induction escape hatch is the definition
   itself: later proofs induct on the step count, never on a coinductive tree.
 - **T4 is landing in pieces during M2.** **T4a `ble_sound`** is proved at
-  M2.3; **T4b `join_sound`** is proved at M2.4; **T4c `transfer_sound`** is
-  M2.6, with `top_sound` and `entails_sound` at M2.5–M2.6.
+  M2.3; **T4b `join_sound`** is proved at M2.4; **`top_sound`** is proved at
+  M2.5; **T4c `transfer_sound`** is M2.6, with `entails_sound` at M2.6.
 - **Gamma is a predicate, not a `Set`.** Lean core (and this Mathlib-free
   tree) has no `Set` type, so the interval instance exposes
   `Interval.gamma : Interval → I32 → Prop`, and `gamma i v` is the plan's

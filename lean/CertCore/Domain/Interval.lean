@@ -376,6 +376,15 @@ theorem join_sound {a b : Interval} {v : I32}
               leHi_sound (leHi_maxHi_right hi1 hi2) v hv.2
             simpa [join, gamma] using And.intro hl hu
 
+/-! ## Top (M2.5) -/
+
+/-- The top element: no information, i.e. every value. -/
+def top : Interval := .itv none none (by trivial)
+
+/-- **T4 (top):** every value is in `top`. -/
+@[simp] theorem top_sound (v : I32) : gamma top v := by
+  simp [top, gamma, lowerOk, upperOk]
+
 end Interval
 
 end CertCore
