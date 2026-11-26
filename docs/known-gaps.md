@@ -16,6 +16,13 @@ owns it, and whether it is a *deferral* (planned) or a *limitation* (won't fix).
 These are true by design and will be documented in the write-up rather than
 fixed:
 
+- **Arithmetic transfer collapses to `top` on endpoint overflow**, and
+  multiplication, division, array reads and `len` are `top` at M2.6. This is a
+  precision limitation, not a soundness one: T4c is proved for the conservative
+  transfer, and the checker's safety obligations separately rule out overflow on
+  accepted executions. A finer multiplication/division transfer is deferred to
+  later precision work; array transfer is M2.7.
+
 - **Conditions are strict.** `BExp.and`/`or` evaluate both operands, so a
   guard-protected partial operation inside a condition
   (`x != 0 && 10 / x > 1`) is not expressible; use the statement-level idiom

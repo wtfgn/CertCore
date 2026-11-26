@@ -50,7 +50,9 @@ Status values: `todo` · `in-progress` · `proved` · `post-month`.
   itself: later proofs induct on the step count, never on a coinductive tree.
 - **T4 is landing in pieces during M2.** **T4a `ble_sound`** is proved at
   M2.3; **T4b `join_sound`** is proved at M2.4; **`top_sound`** is proved at
-  M2.5; **T4c `transfer_sound`** is M2.6, with `entails_sound` at M2.6.
+  M2.5; **T4c `evalExpr_sound`/`assign_sound`** is proved at M2.6; array
+  transfer is M2.7 and `entails_sound` follows with the `CertDomain` instance at
+  M2.8.
 - **Gamma is a predicate, not a `Set`.** Lean core (and this Mathlib-free
   tree) has no `Set` type, so the interval instance exposes
   `Interval.gamma : Interval → I32 → Prop`, and `gamma i v` is the plan's
