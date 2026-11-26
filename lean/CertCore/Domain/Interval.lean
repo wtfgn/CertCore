@@ -97,6 +97,73 @@ def ofBounds (lo hi : Option I32) : Interval :=
 
 @[simp] theorem ofBounds_none_none : ofBounds none none = .itv none none (by trivial) := rfl
 
+/-! ## Membership (M2.2)
+
+Lean core (without Mathlib) has no `Set`, so `gamma` is a predicate
+`Interval → I32 → Prop`; `gamma i v` is the plan's `v ∈ γ i`.
+-/
+
+/-- The lower-bound half of membership: every finite lower bound is below `v`. -/
+def lowerOk (lo : Option I32) (v : I32) : Prop :=
+  ∀ a, lo = some a → a.val ≤ v.val
+
+/-- The upper-bound half of membership: every finite upper bound is above `v`. -/
+def upperOk (hi : Option I32) (v : I32) : Prop :=
+  ∀ b, hi = some b → v.val ≤ b.val
+
+@[simp] theorem lowerOk_none (v : I32) : lowerOk none v := by
+  intro a h
+  cases h
+
+@[simp] theorem lowerOk_some (a v : I32) : lowerOk (some a) v ↔ a.val ≤ v.val := by
+  constructor
+  · intro h
+    exact h a rfl
+  · intro h b hb
+    cases hb
+    exact h
+
+@[simp] theorem upperOk_none (v : I32) : upperOk none v := by
+  intro b h
+  cases h
+
+@[simp] theorem upperOk_some (a v : I32) : upperOk (some a) v ↔ v.val ≤ a.val := by
+  constructor
+  · intro h
+    exact h a rfl
+  · intro h b hb
+    cases hb
+    exact h
+
+/-- Concrete membership in an interval. `bot` is empty; an `itv` contains exactly
+the values between its finite bounds. -/
+def gamma (i : Interval) (v : I32) : Prop :=
+  match i with
+  | .bot => False
+  | .itv lo hi _ => lowerOk lo v ∧ upperOk hi v
+
+@[simp] theorem gamma_bot (v : I32) : ¬ gamma .bot v := by
+  simp [gamma]
+
+@[simp] theorem gamma_itv (lo hi : Option I32) (valid : loLeHi lo hi) (v : I32) :
+    gamma (.itv lo hi valid) v ↔ lowerOk lo v ∧ upperOk hi v := Iff.rfl
+
+@[simp] theorem gamma_toInterval (n : I32) : gamma (toInterval n) n := by
+  simp [gamma, toInterval, lowerOk, upperOk]
+
+/-- A singleton interval contains exactly its point. -/
+theorem gamma_toInterval_iff {n v : I32} : gamma (toInterval n) v ↔ v = n := by
+  constructor
+  · intro h
+    have h' : lowerOk (some n) v ∧ upperOk (some n) v := by
+      simpa [gamma, toInterval] using h
+    have h1 : n.val ≤ v.val := (lowerOk_some n v).1 h'.1
+    have h2 : v.val ≤ n.val := (upperOk_some n v).1 h'.2
+    exact I32.ext (by omega)
+  · intro h
+    subst v
+    exact gamma_toInterval n
+
 end Interval
 
 end CertCore

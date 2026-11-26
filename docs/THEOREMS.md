@@ -48,6 +48,10 @@ Status values: `todo` · `in-progress` · `proved` · `post-month`.
   (`¬ ∃ n, run n = none`), plus the finite-prefix form
   (`∀ n, ∃ c, run n = some c`). The induction escape hatch is the definition
   itself: later proofs induct on the step count, never on a coinductive tree.
+- **Gamma is a predicate, not a `Set`.** Lean core (and this Mathlib-free
+  tree) has no `Set` type, so the interval instance exposes
+  `Interval.gamma : Interval → I32 → Prop`, and `gamma i v` is the plan's
+  `v ∈ γ i`. T4 and later statements use that form.
 - **T5's conclusion is `Program.safe`, which includes `Program.WF`.** A malformed
   source program has no meaning and is never certified safe; M3's checker must
   establish the decidable source contract (`checkWF`: dense unique points,
