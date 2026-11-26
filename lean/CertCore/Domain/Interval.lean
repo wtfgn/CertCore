@@ -251,6 +251,131 @@ theorem ble_sound {a b : Interval} (h : ble a b = true) :
           have hu : upperOk hi2 v := leHi_sound h'.2 v hv'.2
           simpa [gamma] using And.intro hl hu
 
+/-! ## Join (M2.4)
+
+The join is the convex hull: the weaker of the two lower bounds and the stronger
+of the two upper bounds. An unbounded side absorbs the other side.
+-/
+
+/-- The weaker lower bound: `none` (`-∞`) absorbs anything. -/
+def minLo : Option I32 → Option I32 → Option I32
+  | none, _ => none
+  | some _, none => none
+  | some a, some b => if a.val ≤ b.val then some a else some b
+
+/-- The stronger upper bound: `none` (`+∞`) absorbs anything. -/
+def maxHi : Option I32 → Option I32 → Option I32
+  | none, _ => none
+  | some _, none => none
+  | some a, some b => if a.val ≤ b.val then some b else some a
+
+/-- The convex hull's bounds are ordered whenever the inputs are. -/
+theorem loLeHi_min_max {lo1 hi1 lo2 hi2 : Option I32}
+    (w1 : loLeHi lo1 hi1) (w2 : loLeHi lo2 hi2) :
+    loLeHi (minLo lo1 lo2) (maxHi hi1 hi2) := by
+  cases lo1 with
+  | none => cases hi1 <;> cases lo2 <;> cases hi2 <;> simp [minLo, maxHi, loLeHi]
+  | some a1 =>
+    cases hi1 with
+    | none => cases lo2 <;> cases hi2 <;> simp [minLo, maxHi, loLeHi]
+    | some b1 =>
+      cases lo2 with
+      | none => cases hi2 <;> simp [minLo, maxHi, loLeHi]
+      | some a2 =>
+        cases hi2 with
+        | none => simp [minLo, maxHi, loLeHi]
+        | some b2 =>
+          simp only [loLeHi] at w1 w2
+          dsimp [minLo, maxHi]
+          by_cases hmin : a1.val ≤ a2.val
+          · by_cases hmax : b1.val ≤ b2.val
+            · simp [loLeHi, hmin, hmax]; omega
+            · simp [loLeHi, hmin, hmax]; omega
+          · by_cases hmax : b1.val ≤ b2.val
+            · simp [loLeHi, hmin, hmax]; omega
+            · simp [loLeHi, hmin, hmax]; omega
+
+/-- `minLo` is below its left argument. -/
+theorem leLo_minLo_left (lo1 lo2 : Option I32) :
+    leLo (minLo lo1 lo2) lo1 = true := by
+  cases lo1 with
+  | none => simp [minLo, leLo]
+  | some a =>
+      cases lo2 with
+      | none => simp [minLo, leLo]
+      | some b => by_cases h : a.val ≤ b.val <;> simp [minLo, leLo, h] <;> omega
+
+/-- `minLo` is below its right argument. -/
+theorem leLo_minLo_right (lo1 lo2 : Option I32) :
+    leLo (minLo lo1 lo2) lo2 = true := by
+  cases lo1 with
+  | none => cases lo2 <;> simp [minLo, leLo]
+  | some a =>
+      cases lo2 with
+      | none => simp [minLo, leLo]
+      | some b => by_cases h : a.val ≤ b.val <;> simp [minLo, leLo, h] <;> omega
+
+/-- `maxHi` is above its left argument. -/
+theorem leHi_maxHi_left (hi1 hi2 : Option I32) :
+    leHi hi1 (maxHi hi1 hi2) = true := by
+  cases hi1 with
+  | none => cases hi2 <;> simp [maxHi, leHi]
+  | some a =>
+      cases hi2 with
+      | none => simp [maxHi, leHi]
+      | some b => by_cases h : a.val ≤ b.val <;> simp [maxHi, leHi, h] <;> omega
+
+/-- `maxHi` is above its right argument. -/
+theorem leHi_maxHi_right (hi1 hi2 : Option I32) :
+    leHi hi2 (maxHi hi1 hi2) = true := by
+  cases hi1 with
+  | none => cases hi2 <;> simp [maxHi, leHi]
+  | some a =>
+      cases hi2 with
+      | none => simp [maxHi, leHi]
+      | some b => by_cases h : a.val ≤ b.val <;> simp [maxHi, leHi, h] <;> omega
+
+/-- Convex-hull join. `bot` is the identity. -/
+def join : Interval → Interval → Interval
+  | .bot, i => i
+  | i, .bot => i
+  | .itv lo1 hi1 w1, .itv lo2 hi2 w2 =>
+      .itv (minLo lo1 lo2) (maxHi hi1 hi2) (loLeHi_min_max w1 w2)
+
+/-- **T4b (join):** the convex hull contains both operands. -/
+theorem join_sound {a b : Interval} {v : I32}
+    (h : gamma a v ∨ gamma b v) : gamma (join a b) v := by
+  cases a with
+  | bot =>
+      cases b with
+      | bot => simp [gamma] at h
+      | itv lo2 hi2 w2 =>
+          rcases h with h | h
+          · simp [gamma] at h
+          · simpa [join] using h
+  | itv lo1 hi1 w1 =>
+      cases b with
+      | bot =>
+          rcases h with h | h
+          · simpa [join] using h
+          · simp [gamma] at h
+      | itv lo2 hi2 w2 =>
+          rcases h with h | h
+          · have hv : lowerOk lo1 v ∧ upperOk hi1 v := by
+              simpa [gamma] using h
+            have hl : lowerOk (minLo lo1 lo2) v :=
+              leLo_sound (leLo_minLo_left lo1 lo2) v hv.1
+            have hu : upperOk (maxHi hi1 hi2) v :=
+              leHi_sound (leHi_maxHi_left hi1 hi2) v hv.2
+            simpa [join, gamma] using And.intro hl hu
+          · have hv : lowerOk lo2 v ∧ upperOk hi2 v := by
+              simpa [gamma] using h
+            have hl : lowerOk (minLo lo1 lo2) v :=
+              leLo_sound (leLo_minLo_right lo1 lo2) v hv.1
+            have hu : upperOk (maxHi hi1 hi2) v :=
+              leHi_sound (leHi_maxHi_right hi1 hi2) v hv.2
+            simpa [join, gamma] using And.intro hl hu
+
 end Interval
 
 end CertCore
