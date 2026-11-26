@@ -12,7 +12,7 @@ Status values: `todo` · `in-progress` · `proved` · `post-month`.
 | **T1** | `step_det : step cfg p s = some c₁ → step cfg p s = some c₂ → c₁ = c₂` (configurations, not just states) | Semantics sanity | Low | **proved** | M1.9 | `Semantics.lean` |
 | **T2** | `safe_iff : Safe cfg s ↔ ¬ ∃ n, run cfg n cfg.entry s = none` (no failing prefix exists), with `safe_iff_exists : Safe ↔ ∀ n, ∃ c, run … = some c` | Removes coinduction; every later proof is an ordinary induction on steps | Low | **proved** | M1.10 | `Semantics.lean` |
 | **T3** | `run_sound : s ∈ γ a → run n s = some s' → s' ∈ γ (transferStar n a)` | Lifts transfer soundness to traces | Medium | todo | M3 | `Proofs.lean` |
-| **T4** | Per domain: `ble_sound`, `join_sound`, `transfer_sound`, `top_sound`, and `entails_sound` for the safety-predicate test | Domain instances; intervals in-month | Medium | todo | M2 | `Domain/Interval.lean` |
+| **T4** | Per domain: `ble_sound`, `join_sound`, `transfer_sound`, `top_sound`, and `entails_sound` for the safety-predicate test | Domain instances; intervals in-month | Medium | **in-progress** | M2 | `Domain/Interval.lean` |
 | **T5** | **`check_sound : check D p c = .ok → Program.safe p`**, where `Program.safe` requires `Program.WF` | **The kernel theorem** | **Medium** | todo | M3.7 | `Check.lean` |
 | **T6** | Product instance: `ble_sound`, `transfer_sound`, `join_sound` for `D₁ × D₂` | Combinator (a), genericity made executable | Low | todo | M6.2 | `Domain/Product.lean` |
 | **T7** | `reduce_sound : γ (ρ (a,b)) ⊆ γ a ∩ γ b` and `reduce_idem : ρ ∘ ρ = ρ` | Reduced product; **post-month** | **High** | post-month | M8 | `Domain/Reduce.lean` |
@@ -48,6 +48,9 @@ Status values: `todo` · `in-progress` · `proved` · `post-month`.
   (`¬ ∃ n, run n = none`), plus the finite-prefix form
   (`∀ n, ∃ c, run n = some c`). The induction escape hatch is the definition
   itself: later proofs induct on the step count, never on a coinductive tree.
+- **T4 is landing in pieces during M2.** **T4a `ble_sound`** is proved at
+  M2.3; **T4b `join_sound`** is M2.4; **T4c `transfer_sound`** is M2.6, with
+  `top_sound` and `entails_sound` at M2.5–M2.6.
 - **Gamma is a predicate, not a `Set`.** Lean core (and this Mathlib-free
   tree) has no `Set` type, so the interval instance exposes
   `Interval.gamma : Interval → I32 → Prop`, and `gamma i v` is the plan's

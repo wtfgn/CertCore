@@ -164,6 +164,93 @@ theorem gamma_toInterval_iff {n v : I32} : gamma (toInterval n) v ↔ v = n := b
     subst v
     exact gamma_toInterval n
 
+/-! ## Inclusion (M2.3)
+
+`ble a b` decides `γ a ⊆ γ b`. The two endpoint orders differ at `none`:
+`none` is `-∞` on the lower side and `+∞` on the upper side.
+-/
+
+/-- Lower-bound order: `none` is `-∞`. -/
+def leLo : Option I32 → Option I32 → Bool
+  | none, _ => true
+  | some _, none => false
+  | some a, some b => a.val ≤ b.val
+
+/-- Upper-bound order: `none` is `+∞`. -/
+def leHi : Option I32 → Option I32 → Bool
+  | none, none => true
+  | none, some _ => false
+  | some _, none => true
+  | some a, some b => a.val ≤ b.val
+
+/-- Inclusion `γ a ⊆ γ b`.
+
+An interval is included in another when the right-hand lower bound is weaker
+(`lo₂ ≤ lo₁`) and the right-hand upper bound is weaker (`hi₁ ≤ hi₂`); `bot` is
+included in everything. This is a decision procedure, not a proof: `ble_sound`
+is M2.4. -/
+def ble : Interval → Interval → Bool
+  | .bot, .bot => true
+  | .bot, .itv _ _ _ => true
+  | .itv _ _ _, .bot => false
+  | .itv lo1 hi1 _, .itv lo2 hi2 _ => leLo lo2 lo1 && leHi hi1 hi2
+
+/-- `leLo lo2 lo1` is the endpoint fact needed for inclusion: a weaker lower
+bound on the right keeps every value of the left interval. -/
+theorem leLo_sound {lo1 lo2 : Option I32} (h : leLo lo2 lo1 = true) :
+    ∀ v, lowerOk lo1 v → lowerOk lo2 v := by
+  intro v hv
+  cases lo1 with
+  | none =>
+      cases lo2 with
+      | none => exact lowerOk_none v
+      | some a2 => simp [leLo] at h
+  | some a1 =>
+      cases lo2 with
+      | none => exact lowerOk_none v
+      | some a2 =>
+          simp [leLo] at h
+          have ha1 : a1.val ≤ v.val := (lowerOk_some a1 v).1 hv
+          exact (lowerOk_some a2 v).2 (by omega)
+
+/-- `leHi hi1 hi2` is the endpoint fact needed for inclusion: a weaker upper
+bound on the right keeps every value of the left interval. -/
+theorem leHi_sound {hi1 hi2 : Option I32} (h : leHi hi1 hi2 = true) :
+    ∀ v, upperOk hi1 v → upperOk hi2 v := by
+  intro v hv
+  cases hi1 with
+  | none =>
+      cases hi2 with
+      | none => exact upperOk_none v
+      | some a2 => simp [leHi] at h
+  | some a1 =>
+      cases hi2 with
+      | none => exact upperOk_none v
+      | some a2 =>
+          simp [leHi] at h
+          have ha1 : v.val ≤ a1.val := (upperOk_some a1 v).1 hv
+          exact (upperOk_some a2 v).2 (by omega)
+
+/-- **T4 (inclusion):** `ble` is sound for `gamma`. -/
+theorem ble_sound {a b : Interval} (h : ble a b = true) :
+    ∀ v, gamma a v → gamma b v := by
+  intro v hv
+  cases a with
+  | bot =>
+      simp [gamma] at hv
+  | itv lo1 hi1 w1 =>
+      cases b with
+      | bot =>
+          simp [ble] at h
+      | itv lo2 hi2 w2 =>
+          have h' : leLo lo2 lo1 = true ∧ leHi hi1 hi2 = true := by
+            simpa [ble] using h
+          have hv' : lowerOk lo1 v ∧ upperOk hi1 v := by
+            simpa [gamma] using hv
+          have hl : lowerOk lo2 v := leLo_sound h'.1 v hv'.1
+          have hu : upperOk hi2 v := leHi_sound h'.2 v hv'.2
+          simpa [gamma] using And.intro hl hu
+
 end Interval
 
 end CertCore
