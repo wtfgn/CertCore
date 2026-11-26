@@ -5,7 +5,7 @@ Precision is purchasable with certificate bytes, at a fixed trusted computing ba
 
 | | |
 |---|---|
-| Status | **M1 — semantics core.** Build green; `I32`, AST/CFG, `eval`/`step`/`run`/`Safe`, edges, T1/T2, `compile_wf`/`step_edge`, `Program.WF`/`compileChecked`, and the three example fixtures are done. No parser, domain, decoder, or checker yet: M2–M4 build them |
+| Status | **M2 — interval domain (in progress).** M1 semantics core is merged; the interval value type (M2.1) is in; gamma, inclusion, join and transfer are next. No parser, decoder or checker yet |
 | Trusted core | Lean 4 (`lean/CertCore/`), no Mathlib |
 | Untrusted | Haskell analyzer (M5), Python experiment harness (M10) |
 | Interface | JSON certificates, `docs/certificate-v1.md` |
@@ -40,6 +40,7 @@ $ lake env lean lean/CertCore/Audit.lean    # M1 axiom audit; every line [propex
 | `lean/CertCore/I32.lean` | signed 32-bit integers; checked and wrapping arithmetic | **yes** (M1.1) |
 | `lean/CertCore/Semantics.lean` | syntax, state, `eval`, `compile`, `step`, `run`/`Safe`, `edges`, `CFG.WF`/`compile_wf`, `step_edge`, `Program.WF`/`compileChecked` (M1.2–M1.8), T1/T2 proved (M1.9–M1.10) | **yes** |
 | `lean/CertCore/Domain.lean` | `CertDomain` interface, combinators | **yes** (M2, M6) |
+| `lean/CertCore/Domain/Interval.lean` | interval value type: optional bounds with an explicit empty case (M2.1) | **yes** |
 | `lean/CertCore/Cert.lean` | certificate type, total JSON decoder | **yes** (M4) |
 | `lean/CertCore/Check.lean` | three obligation families, typed diagnostic | **yes** (M3) |
 | `lean/CertCore/Proofs.lean` | theorem inventory T1–T10 | **yes** |
@@ -84,6 +85,7 @@ $ lake env lean lean/Tests/Run.lean              # run/Safe checks
 $ lake env lean lean/Tests/Edges.lean            # edge-projection checks
 $ lake env lean lean/Tests/Compile.lean          # maxPoint + CFG well-formedness
 $ lake env lean lean/Tests/Examples.lean         # example-program checks
+$ lake env lean lean/Tests/Interval.lean          # interval-type checks
 $ grep -rnE '\bsorry\b' lean --include='*.lean'  # must print nothing
 $ lake env lean lean/CertCore/Audit.lean         # prints M1 footprint; every line [propext, Quot.sound] or smaller
 ```
