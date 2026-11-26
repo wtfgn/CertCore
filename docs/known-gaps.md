@@ -17,11 +17,13 @@ These are true by design and will be documented in the write-up rather than
 fixed:
 
 - **Arithmetic transfer collapses to `top` on endpoint overflow**, and
-  multiplication and division are `top` at M2.7. This is a precision limitation,
+  multiplication and division are `top` at M2.8. This is a precision limitation,
   not a soundness one: T4c is proved for the conservative transfer, and the
   checker's safety obligations separately rule out overflow on accepted
-  executions. Array read/len became precise at M2.7; a finer
-  multiplication/division transfer is deferred to later precision work.
+  executions. Array read/len became precise at M2.7. Store transfer sets the
+  written array to `top`; the join-with-value refinement is deferred because it
+  needs additional `Array.getD`/`set` lemmas. A finer multiplication/division
+  and store transfer is later precision work.
 
 - **Conditions are strict.** `BExp.and`/`or` evaluate both operands, so a
   guard-protected partial operation inside a condition

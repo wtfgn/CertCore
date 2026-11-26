@@ -4,6 +4,7 @@ import CertCore.Domain
 import CertCore.Domain.Interval
 import CertCore.Domain.IntervalTransfer
 import CertCore.Domain.IntervalArrays
+import CertCore.Domain.IntervalInstance
 import CertCore.Cert
 import CertCore.Check
 import CertCore.Proofs
