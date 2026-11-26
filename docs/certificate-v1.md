@@ -76,8 +76,11 @@ All six fields are required.
 ```
 
 - `point` is a non-negative integer in `[0, |Points|)`, where `|Points|` is the
-  number of program points in the AST the checker parsed. Out of range ⇒
-  malformed.
+  size of the compiled CFG's instruction array: every source program point plus
+  one halt point. For dense source points `0 .. maxPoint`, that is
+  `maxPoint + 2`. Out of range ⇒ malformed. The halt point is not a source point
+  and carries no certificate state; the frontend guarantees dense unique source
+  points (`Program.WF`), and the checker uses the same array size as the bound.
 - `label` is a non-negative integer in `[0, labels.size)`. Out of range ⇒
   malformed.
 - `states` must not contain the `entry` key, and must not contain duplicate

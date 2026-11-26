@@ -59,7 +59,19 @@ example : ¬ CFG.Safe (Program.compile divProg) st := by
 example : CFG.Safe cfg st ↔ ∀ n, (run cfg n cfg.entry st).isSome = true :=
   CFG.safe_iff_isSome
 
--- F3: `Program.safe` is a program-level predicate, accessible by dot notation.
+-- F3/R2: `Program.safe` is a program-level predicate, accessible by dot notation,
+-- and it requires source well-formedness (a malformed program is never safe).
 example (p : Program) : Prop := p.safe
-example (p : Program) : p.safe ↔ CFG.Safe (Program.compile p) (State.init p) :=
+example (p : Program) : p.safe ↔ p.WF ∧ CFG.Safe (Program.compile p) (State.init p) :=
   Iff.rfl
+example (p : Program) (h : p.safe) : p.WF := h.1
+
+/-- A non-dense point list: malformed, so not certifiably safe. -/
+def gapProg : Program := { body := .seq (.skip 0) (.skip 2), arrays := #[] }
+
+example : ¬ gapProg.safe := by
+  intro h
+  have hwf : gapProg.checkWF = true := h.1
+  have hfalse : gapProg.checkWF = false := by decide
+  rw [hfalse] at hwf
+  exact absurd hwf (by decide)

@@ -78,16 +78,37 @@ def unboundRead : Program :=
 def tooManyPoints : Program :=
   { body := .skip (maxProgramPoints + 1), arrays := #[] }
 
+/-- An array count beyond the frontend's resource bound. -/
+def tooManyArrays : Program :=
+  { body := .skip 0, arrays := Array.replicate (maxArrays + 1) 0 }
+
+/-- A declared array length beyond the frontend's resource bound. -/
+def tooLongArray : Program :=
+  { body := .skip 0, arrays := #[maxArrayLength + 1] }
+
+/-- The array bounds are each satisfied, but their total exceeds the cell budget. -/
+def tooManyCells : Program :=
+  { body := .skip 0,
+    arrays := #[maxTotalArrayCells / 2 + 1, maxTotalArrayCells / 2 + 1] }
+
+/-- The resource bounds themselves are accepted. -/
+def maxArrayOk : Program :=
+  { body := .skip 0, arrays := #[maxArrayLength] }
+
 #guard loopTail.checkWF
 #guard ifTail.checkWF
 #guard straight.checkWF
 #guard nested.checkWF
+#guard maxArrayOk.checkWF
 
 #guard !duplicatePoints.checkWF
 #guard !gapPoints.checkWF
 #guard !badArray.checkWF
 #guard !unboundRead.checkWF
 #guard !tooManyPoints.checkWF
+#guard !tooManyArrays.checkWF
+#guard !tooLongArray.checkWF
+#guard !tooManyCells.checkWF
 
 example : straight.WF := by
   unfold Program.WF
@@ -98,9 +119,15 @@ example : (Program.compileChecked duplicatePoints).isNone := by decide
 example : (Program.compileChecked gapPoints).isNone := by decide
 example : (Program.compileChecked badArray).isNone := by decide
 example : (Program.compileChecked unboundRead).isNone := by decide
+#guard (Program.compileChecked tooManyArrays).isNone
+#guard (Program.compileChecked tooManyCells).isNone
+example : (Program.compileChecked tooLongArray).isNone := by decide
 
 example {cfg : CFG} (h : Program.compileChecked straight = some cfg) : cfg.WF :=
   Program.compileChecked_wf h
+
+example (h : straight.WF) : straight.compileChecked = some (Program.compile straight) :=
+  Program.compileChecked_of_WF h
 
 /-! ## `maxPoint` counts branch and loop bodies -/
 

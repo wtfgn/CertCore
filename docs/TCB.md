@@ -44,9 +44,12 @@ The compiled CFG's **well-formedness** is now proved, not assumed:
 the instruction array (`Semantics.lean`). The compiler is still trusted for the
 *meaning* of each instruction, but not for array bounds. Source well-formedness
 is a decidable check: `Program.checkWF` rejects duplicate or non-dense points,
-undeclared arrays, unassigned reads, and `maxPoint ≥ maxProgramPoints`;
-`compileChecked` returns `none` instead of compiling such a program.
-`Tests/Compile.lean` pins the accepted and rejected shapes.
+undeclared arrays, unassigned reads, `maxPoint ≥ maxProgramPoints`, programs with
+`maxArrays` or more arrays, any array longer than `maxArrayLength`, and more than
+`maxTotalArrayCells` total declared cells; `compileChecked` returns `none`
+instead of compiling such a program. `Program.safe` includes `Program.WF`, so a
+malformed program is never certified. `Tests/Compile.lean` pins the accepted and
+rejected shapes.
 
 Numbers (1) and (2) are the honest residual risk of any Lean artifact; they are
 named here rather than hidden. `#print axioms` cannot see them.

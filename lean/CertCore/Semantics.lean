@@ -41,8 +41,8 @@ Implemented:
 * `Instr.targetsLt`, `CFG.WF`, `Program.compile_wf` — every compiled CFG has an
   in-range entry and every instruction successor is inside the instruction array.
 * `Cmd.points`, `Program.checkWF`, `Program.compileChecked` — the decidable
-  source contract (unique points, declared arrays, assigned reads, bounded
-  `maxPoint`) and the fail-closed compilation entry point.
+  source contract (unique points, declared arrays within resource bounds,
+  assigned reads, bounded `maxPoint`) and the fail-closed compilation entry point.
 * `EdgeCmd.exec`, `CFG.step_edge` — the effect of a checker edge, and the proof
   that every successful `step` is one edge of the graph.
 * `CFG.step_det` (T1, M1.9) and `CFG.safe_iff` / `safe_iff_exists` (T2, M1.10).
@@ -54,14 +54,17 @@ Not in M1:
 * M3: `check`, the three obligation families, and T5.
 * M4: the parser, the total decoder, and `certcore check`.
 
+Decisions that matter later:
+
 * **Fuel exhaustion is not failure.** `run 0` returns the starting
   configuration, and `none` appears only when a step fails. `Safe` is
   `∀ n, run n entry s ≠ none`, so a diverging run (including the halt stutter)
   is safe: every finite prefix is. This is the plan's D6 choice, now realised
   over the compiled machine.
-* **`Program.safe` pairs the compiled machine with `State.init`**, so the
-  program-level theorem (T5) will be about the program's initial state; the
-  state-general `CFG.Safe` stays available for the trace lemmas.
+* **`Program.safe` requires `Program.WF`** and pairs the compiled machine with
+  `State.init`, so the program-level theorem (T5) is about a well-formed program's
+  initial state; the state-general `CFG.Safe` stays available for the trace
+  lemmas.
 
 * **Edges are recomputed, never supplied.** `CFG.edges` is the checker's view of
   the compiled graph: the analyzer's certificate carries states, not edges, so a
@@ -73,8 +76,6 @@ Not in M1:
   checker must discharge an obligation for each. The two views agree by
   `mem_edges_branch_true` / `mem_edges_branch_false`; `CFG.step_edge` packages
   the bridge for T5.
-
-Decisions that matter later:
 
 * Constants are `I32`, so an out-of-range source literal is a *frontend* error
   (the parser uses `I32.ofInt?`), not a runtime `none`; every expression node is
@@ -331,6 +332,21 @@ end Cmd
 expected to enforce it before constructing a `Program`; `Program.compileChecked`
 also checks it before allocating the instruction array. -/
 def maxProgramPoints : Nat := 65536
+
+/-- A conservative bound on the number of declared arrays. Like
+`maxProgramPoints`, this is a frontend resource contract: `compileChecked`
+rejects programs outside it rather than allocating for them. -/
+def maxArrays : Nat := 4096
+
+/-- A conservative bound on a declared array length. It keeps `State.init`'s
+allocation bounded and is well below `i32Max`, so `Expr.len` is defined for every
+accepted array. -/
+def maxArrayLength : Nat := 1048576
+
+/-- A bound on the total number of declared cells across all arrays. The
+per-array and array-count bounds alone still allow `maxArrays * maxArrayLength`
+cells; this caps the product that `State.init` may be asked to allocate. -/
+def maxTotalArrayCells : Nat := 1048576
 
 /-- Boolean equality for variable names, kept explicit so the well-formedness
 check stays computable and axiom-free. -/
@@ -887,14 +903,24 @@ end Cmd
 
 namespace Program
 
+/-- Total declared cells across all arrays, used by `checkWF` to bound
+initialisation. -/
+def arrayCells (p : Program) : Nat :=
+  p.arrays.toList.foldl (fun acc n => acc + n) 0
+
 /-- Decidable source well-formedness: the point list is exactly
-`0 .. maxPoint` (dense and unique), `maxPoint` is bounded, every array index is
-declared, and every read variable is assigned somewhere.
+`0 .. maxPoint` (dense and unique), `maxPoint` is bounded, the array count, each
+declared array length, and the total declared cell count are within the resource
+bounds, every array index is declared, and every read variable is assigned
+somewhere.
 
 This is the frontend contract. `Program.compile` assumes it; `compileChecked`
 validates it before compiling. -/
 def checkWF (p : Program) : Bool :=
   Nat.blt p.body.maxPoint maxProgramPoints &&
+  Nat.blt p.arrays.size maxArrays &&
+  p.arrays.toList.all (fun n => decide (n ≤ maxArrayLength)) &&
+  decide (arrayCells p ≤ maxTotalArrayCells) &&
   (p.body.points.length == p.body.maxPoint + 1) &&
   (p.body.points.eraseDups.length == p.body.points.length) &&
   p.body.points.all (fun q => Nat.blt q (p.body.maxPoint + 1)) &&
@@ -994,6 +1020,14 @@ theorem Program.compileChecked_wf {p : Program} {cfg : CFG}
       exact Program.compile_wf p
   | false =>
       simp [hwf] at h
+
+/-- A well-formed source program compiles through the checked entry point. This
+is the bridge T5 uses to move from `Program.WF` to a checked compilation. -/
+theorem Program.compileChecked_of_WF {p : Program} (h : p.WF) :
+    p.compileChecked = some (Program.compile p) := by
+  unfold Program.compileChecked
+  have h' : p.checkWF = true := h
+  simp [h']
 
 namespace CFG
 
@@ -1117,8 +1151,15 @@ end CFG
 
 namespace Program
 
-/-- A program is safe when its compiled machine is safe from the initial state. -/
-def safe (p : Program) : Prop := CFG.Safe (Program.compile p) (State.init p)
+/-- A program is safe when it is **well formed** and its compiled machine is safe
+from the initial state.
+
+The `WF` conjunct is deliberate: a malformed source program has no meaning, so it
+is never certified safe. The checker must establish `Program.WF` (a decidable
+check) before a certificate can be accepted; this is the source contract T5
+carries into its conclusion. -/
+def safe (p : Program) : Prop :=
+  WF p ∧ CFG.Safe (Program.compile p) (State.init p)
 
 end Program
 

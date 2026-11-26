@@ -52,6 +52,9 @@ Roadmap M1 (`docs/certcore-roadmap.md` §6) asks for eleven subtasks. Their stat
 
 ## 2. The tree at a glance
 
+*Line counts are at review time (`0f9505e`); §11 records the post-review changes,
+including the current, larger `Semantics.lean`.*
+
 | File | Lines | Trust | Role | M1 state |
 |---|---:|---|---|---|
 | `lean/CertCore/I32.lean` | 282 | **yes** | Signed 32-bit values; checked and wrapping arithmetic | complete |
@@ -744,3 +747,22 @@ The reassuring part is that all four are cheap: two lines for F1, a namespace mo
 - Verified after the changes: `lake build` green, no warnings; all nine test
   files pass; no `sorry`; the audit footprint is `[propext, Quot.sound]` for
   every printed M1 lemma.
+
+**2026-11-26 (merge review).**
+
+- **R1 fixed.** `Program.checkWF` now bounds the declared array count
+  (`maxArrays = 4096`), each declared length (`maxArrayLength = 1048576`), and
+  the total declared cell count (`maxTotalArrayCells = 1048576`), as well as
+  `maxPoint`. `compileChecked` rejects programs outside the bounds instead of
+  letting `State.init` allocate for them; `Tests/Compile.lean` pins acceptance at
+  the bounds and rejection beyond them (including the product case).
+- **R2 fixed.** `Program.safe` now requires `Program.WF`; a malformed source
+  program is never certified safe. `Tests/Run.lean` pins the new unfolding and a
+  malformed-program rejection, and `THEOREMS.md` states T5's conclusion as
+  `Program.safe`.
+- **R3 fixed.** The four decision bullets that had drifted under the
+  “Not in M1” heading of `Semantics.lean` were moved under “Decisions that matter
+  later”, and the `Program.safe` bullet now mentions the `WF` conjunct.
+- **R4 fixed.** `certificate-v1.md` §3.1 now defines `|Points|` as the compiled
+  CFG's instruction-array size (source points plus the halt point), matching the
+  implementation.
