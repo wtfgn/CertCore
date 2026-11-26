@@ -11,9 +11,8 @@
 | Axioms (T1/T2, sampled) | `[propext, Quot.sound]` — manual `#print axioms`; `Audit.lean` does not check them yet |
 | Verdict | **M1 is code-complete but not merge-ready.** One trusted-compiler correctness bug (F1) and one public-API namespace bug (F3) must be fixed before M2/M3. |
 
-> **Update 2026-11-25:** F1–F4 are fixed and F7 is partly fixed; F5 is M2
-> interface work. See §11. The findings below are the review as written, kept
-> for the record.
+> **Update 2026-11-25:** F1–F4 and F7 are fixed; F5 is M2 interface work. See
+> §11. The findings below are the review as written, kept for the record.
 
 This review is based on reading every Lean source, test, and design document; building the tree; running the eight test files; grepping for `sorry`; and printing the axiom footprint of the M1 theorems. The most important result is not the summary — it is **F1**, a reproducible bug in `Cmd.maxPoint` that silently truncates the CFG for any program whose largest point is inside an `if` or `while` body. The existing examples pass only because each has a later top-level point that accidentally sizes the array correctly.
 
@@ -732,11 +731,13 @@ The reassuring part is that all four are cheap: two lines for F1, a namespace mo
   with the same source, destination, and edge effect. `Tests/Edges.lean` pins
   the atomic and branch cases and the `assume`-edge effect.
 - `Tests/Syntax.lean` was updated for the now-total `Cmd.entry`.
-- **F7 partly fixed**: `Cmd.entry` and `Program.entry` are now total, `instrAt`
-  uses an in-range lookup, and `Program.compile_wf` makes out-of-range writes
-  unreachable for compiled programs. `place` remains fail-open for malformed
-  CFGs; a frontend `Program.WF` (dense/unique points, array/variable bounds) is
-  still M4/M5 work.
+- **F7 fixed**: `place` now takes an in-range proof, so an out-of-range write is
+  not representable; `Cmd.compile` takes a size bound and returns a subtype
+  recording size preservation. `Program.checkWF` is the decidable source
+  contract (dense unique points, declared arrays, assigned reads, bounded
+  `maxPoint`), and `Program.compileChecked` returns `none` for a malformed
+  program instead of allocating/compiling it. `Tests/Compile.lean` pins the
+  accepted and rejected shapes.
 - **F8/F9 closed for M1**: README, TCB, known-gaps, and the stub headers now
   describe M1; `Audit.lean` prints the T1/T2, `compile_wf`, and `step_edge`
   footprints. F10 (aggregate test runner) remains optional hygiene.

@@ -59,6 +59,12 @@ Status values: `todo` · `in-progress` · `proved` · `post-month`.
   inside the array. T5 uses this to rule out a "missing instruction" failure
   that no certificate can discharge. It lives in `Semantics.lean` and is
   exercised by `Tests/Compile.lean`.
+- **Source WF is a decidable contract, not a numbered theorem.**
+  `Program.checkWF` checks dense unique points, declared array indices, assigned
+  reads, and a bounded `maxPoint`; `Program.compileChecked` returns `none` for a
+  malformed program instead of compiling it. `Cmd.compile` itself takes a size
+  bound and a proof-carrying `place`, so an out-of-range write is not
+  representable. `Tests/Compile.lean` pins accepted and rejected shapes.
 - **`step_edge` is the operational/edge bridge, not a numbered theorem.** It
   states that every successful `step` corresponds to an edge in `cfg.edges`
   whose `EdgeCmd.exec` effect produces the same state. This is what lets T5

@@ -63,6 +63,12 @@ Each atomic command (`skip`, assignment, store, `assert`) and each branch point
 pre-order starting at 0; the compiled CFG adds one halt point after the largest
 point. `.imp` files carry no points — they are assigned from the source text.
 
+The frontend must construct a `Program` satisfying `Program.checkWF`: points are
+exactly `0 .. maxPoint` (dense and unique), `maxPoint < 65536`, every array index
+is within the declared array count, and every read variable is assigned
+somewhere. `Program.compileChecked` returns `none` for a program that fails this
+contract; the parser should use it (or the same checks) at the source boundary.
+
 ## Fixtures
 
 | File | Expected |

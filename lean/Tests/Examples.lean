@@ -85,3 +85,10 @@ def arrSt : State := State.init arrProg
 #guard pointOf (run arrCfg 1 arrCfg.entry arrSt) = some 1
 #guard (run arrCfg 2 arrCfg.entry arrSt).isNone
 #guard (step arrCfg 1 (arrSt.set "i" (c 3))).isNone
+
+/-! ## The fixtures satisfy source well-formedness -/
+
+#guard safeProg.checkWF
+#guard divProg.checkWF
+#guard arrProg.checkWF
+#guard (Program.compileChecked safeProg).isSome

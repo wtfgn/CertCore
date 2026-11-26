@@ -40,6 +40,9 @@ Implemented:
   polarity, in ascending point order, with membership lemmas for the kernel proof.
 * `Instr.targetsLt`, `CFG.WF`, `Program.compile_wf` — every compiled CFG has an
   in-range entry and every instruction successor is inside the instruction array.
+* `Cmd.points`, `Program.checkWF`, `Program.compileChecked` — the decidable
+  source contract (unique points, declared arrays, assigned reads, bounded
+  `maxPoint`) and the fail-closed compilation entry point.
 * `EdgeCmd.exec`, `CFG.step_edge` — the effect of a checker edge, and the proof
   that every successful `step` is one edge of the graph.
 * `CFG.step_det` (T1, M1.9) and `CFG.safe_iff` / `safe_iff_exists` (T2, M1.10).
@@ -110,12 +113,14 @@ Decisions that matter later:
   and what the Haskell mirror consumes; the certificate is about the compiled
   graph.
 * **The compiler is trusted.** `Cmd.compile` is small, deterministic and in the
-  TCB; a bug there changes what the program means. `Program.compile_wf` proves
-  that every compiled CFG has an in-range entry and successors, and
-  `Tests/Compile.lean` pins representative shapes. The Haskell mirror will have
-  to agree with the compiler. A malformed program with duplicate points gets
-  last-write-wins; the frontend's point-uniqueness invariant is what makes
-  compilation deterministic in practice.
+  TCB; a bug there changes what the program means. Every write goes through
+  `place`, whose in-range proof is an argument: an out-of-range write is not a
+  representable call, so the compiler cannot silently drop an instruction.
+  `Program.compile_wf` proves that every compiled CFG has an in-range entry and
+  successors. `Program.checkWF` rejects duplicate points, undeclared array
+  indices, unassigned reads, and an oversized `maxPoint`; `compileChecked`
+  returns `none` for those programs. The Haskell mirror will have to agree with
+  the compiler.
 * **Halting is a stutter.** Compilation adds a halt point holding `skip` to
   itself, so termination is never `none`. `none` is reserved for the four hazards
   (plus an out-of-range point, which is a malformed CFG rather than a
@@ -229,6 +234,114 @@ def entry : Cmd → Point
   | .seq first _ => entry first
 
 end Cmd
+
+namespace Expr
+
+/-- Array indices mentioned by an expression. Used by `Program.WF` to check that
+the program only refers to declared arrays. -/
+def arrs : Expr → List Arr
+  | .const _ => []
+  | .var _ => []
+  | .add l r => l.arrs ++ r.arrs
+  | .sub l r => l.arrs ++ r.arrs
+  | .mul l r => l.arrs ++ r.arrs
+  | .div l r => l.arrs ++ r.arrs
+  | .read a i => a :: i.arrs
+  | .len a => [a]
+
+/-- Variables read by an expression. -/
+def readVars : Expr → List Var
+  | .const _ => []
+  | .var x => [x]
+  | .add l r => l.readVars ++ r.readVars
+  | .sub l r => l.readVars ++ r.readVars
+  | .mul l r => l.readVars ++ r.readVars
+  | .div l r => l.readVars ++ r.readVars
+  | .read _ i => i.readVars
+  | .len _ => []
+
+end Expr
+
+namespace BExp
+
+/-- Array indices mentioned by a condition. -/
+def arrs : BExp → List Arr
+  | .cmp _ l r => l.arrs ++ r.arrs
+  | .not b => b.arrs
+  | .and l r => l.arrs ++ r.arrs
+  | .or l r => l.arrs ++ r.arrs
+
+/-- Variables read by a condition. -/
+def readVars : BExp → List Var
+  | .cmp _ l r => l.readVars ++ r.readVars
+  | .not b => b.readVars
+  | .and l r => l.readVars ++ r.readVars
+  | .or l r => l.readVars ++ r.readVars
+
+end BExp
+
+namespace Cmd
+
+/-- All program points mentioned by a command, in source pre-order. `Program.WF`
+requires this to be exactly `0 .. maxPoint`, so points are dense and unique. -/
+def points : Cmd → List Point
+  | .skip p => [p]
+  | .assign p _ _ => [p]
+  | .store p _ _ _ => [p]
+  | .assert p _ => [p]
+  | .ite p _ t e => p :: (t.points ++ e.points)
+  | .while p _ body => p :: body.points
+  | .seq a b => a.points ++ b.points
+
+/-- Array indices mentioned anywhere in a command. -/
+def arrs : Cmd → List Arr
+  | .skip _ => []
+  | .assign _ _ e => e.arrs
+  | .store _ a i v => a :: (i.arrs ++ v.arrs)
+  | .assert _ b => b.arrs
+  | .ite _ b t e => b.arrs ++ (t.arrs ++ e.arrs)
+  | .while _ b body => b.arrs ++ body.arrs
+  | .seq a b => a.arrs ++ b.arrs
+
+/-- Variables read anywhere in a command. -/
+def readVars : Cmd → List Var
+  | .skip _ => []
+  | .assign _ _ e => e.readVars
+  | .store _ _ i v => i.readVars ++ v.readVars
+  | .assert _ b => b.readVars
+  | .ite _ b t e => b.readVars ++ (t.readVars ++ e.readVars)
+  | .while _ b body => b.readVars ++ body.readVars
+  | .seq a b => a.readVars ++ b.readVars
+
+/-- Variables assigned somewhere in a command. This is a flow-insensitive
+"every read variable is assigned somewhere" check; the real frontend can be
+flow-sensitive and stricter. -/
+def assignedVars : Cmd → List Var
+  | .skip _ => []
+  | .assign _ x _ => [x]
+  | .store _ _ _ _ => []
+  | .assert _ _ => []
+  | .ite _ _ t e => t.assignedVars ++ e.assignedVars
+  | .while _ _ body => body.assignedVars
+  | .seq a b => a.assignedVars ++ b.assignedVars
+
+end Cmd
+
+/-- A conservative bound on the number of source program points. The parser is
+expected to enforce it before constructing a `Program`; `Program.compileChecked`
+also checks it before allocating the instruction array. -/
+def maxProgramPoints : Nat := 65536
+
+/-- Boolean equality for variable names, kept explicit so the well-formedness
+check stays computable and axiom-free. -/
+def varEq (x y : Var) : Bool :=
+  match String.decEq x y with
+  | isTrue _ => true
+  | isFalse _ => false
+
+/-- Boolean membership for the `Program.WF` variable check. -/
+def varMem (x : Var) (vars : List Var) : Bool :=
+  vars.any (fun y => varEq x y)
 
 /-- A whole program: a command plus the constant length of every array.
 
@@ -529,11 +642,42 @@ def maxPoint : Cmd → Nat
   | .while p _ body => max p body.maxPoint
   | .seq a b => max a.maxPoint b.maxPoint
 
-/-- Write one instruction at its point, if the point is inside the allocated
-array. A well-formed program has unique points, so each slot is written once; a
-malformed program's out-of-range points are ignored rather than crashing. -/
-def place (instrs : Array Instr) (p : Point) (i : Instr) : Array Instr :=
-  if h : p < instrs.size then instrs.set p i h else instrs
+/-- Write one instruction at its point. The in-range proof is an argument, so an
+out-of-range write is not a representable call: the compiler cannot silently
+drop an instruction. -/
+def place (instrs : Array Instr) (p : Point) (i : Instr) (hp : p < instrs.size) :
+    Array Instr :=
+  instrs.set p i hp
+
+/-- `place` never changes the instruction array's size. -/
+theorem place_size (instrs : Array Instr) (p : Point) (i : Instr)
+    (hp : p < instrs.size) :
+    (place instrs p i hp).size = instrs.size :=
+  Array.size_set hp
+
+/-- `place` preserves "all instructions have successors in range", provided the
+instruction being written satisfies it. -/
+theorem place_targetsLt {instrs : Array Instr} {n : Nat} {p : Point} {i : Instr}
+    (hp : p < instrs.size)
+    (hinv : ∀ (q : Point) (h : q < instrs.size), (instrs[q]).targetsLt n)
+    (hi : i.targetsLt n) :
+    ∀ (q : Point) (h : q < (place instrs p i hp).size),
+      ((place instrs p i hp)[q]).targetsLt n := by
+  intro q hq
+  have hq' : q < instrs.size := by
+    simpa [place, Array.size_set hp] using hq
+  by_cases hqp : q = p
+  · subst q
+    have hplace : (place instrs p i hp)[p] = i := by
+      unfold place
+      exact Array.getElem_set_self hp
+    rw [hplace]
+    exact hi
+  · have hplace : (place instrs p i hp)[q] = instrs[q] := by
+      unfold place
+      exact Array.getElem_set_ne hp hq' (fun hpq => hqp hpq.symm)
+    rw [hplace]
+    exact hinv q hq'
 
 /-- Compile a command with continuation point `k`: where control goes after the
 command finishes.
@@ -541,57 +685,74 @@ command finishes.
 Atomic commands fall through to `k`; branches take their targets from the
 sub-commands' entry points; a `while`'s false branch goes to `k` and its body
 loops back to the guard. This is the continuation threading that a structural
-small-step semantics would otherwise have to carry in a runtime stack. -/
-def compile : Cmd → Point → Array Instr → Array Instr
-  | .skip p, k, instrs => place instrs p (.atomic .skip k)
-  | .assign p x e, k, instrs => place instrs p (.atomic (.assign x e) k)
-  | .store p a i v, k, instrs => place instrs p (.atomic (.store a i v) k)
-  | .assert p b, k, instrs => place instrs p (.atomic (.assert b) k)
-  | .ite p b t e, k, instrs =>
-      let instrs := place instrs p (.branch b (t.entry) (e.entry))
-      compile t k (compile e k instrs)
-  | .while p b body, k, instrs =>
-      let instrs := place instrs p (.branch b (body.entry) k)
-      compile body p instrs
-  | .seq a b, k, instrs =>
-      compile a (b.entry) (compile b k instrs)
+small-step semantics would otherwise have to carry in a runtime stack.
 
-/-- `place` never changes the instruction array's size. -/
-theorem place_size (instrs : Array Instr) (p : Point) (i : Instr) :
-    (place instrs p i).size = instrs.size := by
-  unfold place
-  split
-  · simp [Array.size_set]
-  · rfl
-
-/-- `place` preserves "all instructions have successors in range", provided the
-instruction being written satisfies it. -/
-theorem place_targetsLt {instrs : Array Instr} {n : Nat} {p : Point} {i : Instr}
-    (hinv : ∀ (q : Point) (h : q < instrs.size), (instrs[q]).targetsLt n)
-    (hi : i.targetsLt n) :
-    ∀ (q : Point) (h : q < (place instrs p i).size),
-      ((place instrs p i)[q]).targetsLt n := by
-  intro q hq
-  by_cases hp : p < instrs.size
-  · have hq' : q < (instrs.set p i hp).size := by
-      simpa [place, hp] using hq
-    have hq'' : q < instrs.size := by
-      simpa [Array.size_set hp] using hq'
-    by_cases hqp : q = p
-    · subst q
-      have hplace : (place instrs p i)[p] = i := by
-        simp [place, hp]
-      rw [hplace]
-      exact hi
-    · have hplace : (place instrs p i)[q] = instrs[q] := by
-        simpa [place, hp] using
-          (Array.getElem_set_ne (h' := hp) (pj := hq'')
-            (h := fun hpq => hqp hpq.symm))
-      rw [hplace]
-      exact hinv q hq''
-  · have hq' : q < instrs.size := by
-      simpa [place, hp] using hq
-    simpa [place, hp] using hinv q hq'
+The size bound is an argument: every write is in range by construction, and the
+result records that compilation preserves the input array's size. -/
+def compile (c : Cmd) (k : Point) (instrs : Array Instr)
+    (hbound : c.maxPoint < instrs.size) :
+    { out : Array Instr // out.size = instrs.size } :=
+  match c with
+  | .skip p =>
+      ⟨place instrs p (.atomic .skip k) hbound,
+        place_size instrs p (.atomic .skip k) hbound⟩
+  | .assign p x e =>
+      ⟨place instrs p (.atomic (.assign x e) k) hbound,
+        place_size instrs p (.atomic (.assign x e) k) hbound⟩
+  | .store p a i v =>
+      ⟨place instrs p (.atomic (.store a i v) k) hbound,
+        place_size instrs p (.atomic (.store a i v) k) hbound⟩
+  | .assert p b =>
+      ⟨place instrs p (.atomic (.assert b) k) hbound,
+        place_size instrs p (.atomic (.assert b) k) hbound⟩
+  | .ite p b t e =>
+      have hp : p < instrs.size :=
+        Nat.lt_of_le_of_lt (Nat.le_max_left p (max t.maxPoint e.maxPoint)) hbound
+      have hte : max t.maxPoint e.maxPoint < instrs.size :=
+        Nat.lt_of_le_of_lt (Nat.le_max_right p (max t.maxPoint e.maxPoint)) hbound
+      have ht : t.maxPoint < instrs.size :=
+        Nat.lt_of_le_of_lt (Nat.le_max_left _ _) hte
+      have he : e.maxPoint < instrs.size :=
+        Nat.lt_of_le_of_lt (Nat.le_max_right _ _) hte
+      let instrs1 : Array Instr := place instrs p (.branch b t.entry e.entry) hp
+      have hsize1 : instrs1.size = instrs.size :=
+        place_size instrs p (.branch b t.entry e.entry) hp
+      have he1 : e.maxPoint < instrs1.size := by
+        rw [hsize1]
+        exact he
+      let inner := compile e k instrs1 he1
+      have ht1 : t.maxPoint < instrs1.size := by
+        rw [hsize1]
+        exact ht
+      have ht2 : t.maxPoint < inner.1.size := by
+        rw [inner.2]
+        exact ht1
+      let outer := compile t k inner.1 ht2
+      ⟨outer.1, by rw [outer.2, inner.2, hsize1]⟩
+  | .while p b body =>
+      have hp : p < instrs.size :=
+        Nat.lt_of_le_of_lt (Nat.le_max_left p body.maxPoint) hbound
+      have hb : body.maxPoint < instrs.size :=
+        Nat.lt_of_le_of_lt (Nat.le_max_right p body.maxPoint) hbound
+      let instrs1 : Array Instr := place instrs p (.branch b body.entry k) hp
+      have hsize1 : instrs1.size = instrs.size :=
+        place_size instrs p (.branch b body.entry k) hp
+      have hb1 : body.maxPoint < instrs1.size := by
+        rw [hsize1]
+        exact hb
+      let res := compile body p instrs1 hb1
+      ⟨res.1, by rw [res.2, hsize1]⟩
+  | .seq a b =>
+      have han : a.maxPoint < instrs.size :=
+        Nat.lt_of_le_of_lt (Nat.le_max_left a.maxPoint b.maxPoint) hbound
+      have hbn : b.maxPoint < instrs.size :=
+        Nat.lt_of_le_of_lt (Nat.le_max_right a.maxPoint b.maxPoint) hbound
+      let resb := compile b k instrs hbn
+      have ha1 : a.maxPoint < resb.1.size := by
+        rw [resb.2]
+        exact han
+      let resa := compile a b.entry resb.1 ha1
+      ⟨resa.1, by rw [resa.2, resb.2]⟩
 
 /-- A command's entry point is at most its largest point. This is the bridge
 between `entry` (where execution starts) and `maxPoint` (how large the
@@ -606,29 +767,10 @@ theorem entry_le_maxPoint : ∀ {c : Cmd}, c.entry ≤ c.maxPoint
   | .seq a _ => Nat.le_trans (entry_le_maxPoint (c := a)) (Nat.le_max_left _ _)
 
 /-- Compilation never changes the instruction array's size. -/
-theorem compile_size : ∀ (c : Cmd) (k : Point) (instrs : Array Instr),
-    (compile c k instrs).size = instrs.size
-  | .skip p, k, instrs => by
-      simp [compile, place_size]
-  | .assign p x e, k, instrs => by
-      simp [compile, place_size]
-  | .store p a i v, k, instrs => by
-      simp [compile, place_size]
-  | .assert p b, k, instrs => by
-      simp [compile, place_size]
-  | .ite p b t e, k, instrs => by
-      dsimp [compile]
-      rw [compile_size t k (compile e k (place instrs p (.branch b t.entry e.entry)))]
-      rw [compile_size e k (place instrs p (.branch b t.entry e.entry))]
-      exact place_size instrs p (.branch b t.entry e.entry)
-  | .while p b body, k, instrs => by
-      dsimp [compile]
-      rw [compile_size body p (place instrs p (.branch b body.entry k))]
-      exact place_size instrs p (.branch b body.entry k)
-  | .seq a b, k, instrs => by
-      dsimp [compile]
-      rw [compile_size a b.entry (compile b k instrs)]
-      rw [compile_size b k instrs]
+theorem compile_size (c : Cmd) (k : Point) (instrs : Array Instr)
+    (hbound : c.maxPoint < instrs.size) :
+    (compile c k instrs hbound).1.size = instrs.size :=
+  (compile c k instrs hbound).2
 
 /-- Compilation preserves the invariant that every instruction's successors are
 inside the array, for an array of size `n` that already satisfies it. -/
@@ -636,102 +778,150 @@ theorem compile_targetsLt {c : Cmd} {k : Point} {instrs : Array Instr} {n : Nat}
     (hsize : instrs.size = n)
     (hinv : ∀ (q : Point) (h : q < instrs.size), (instrs[q]).targetsLt n)
     (hk : k < n)
-    (hbound : c.maxPoint < n) :
-    ∀ (q : Point) (h : q < (compile c k instrs).size),
-      ((compile c k instrs)[q]).targetsLt n := by
+    (hbound : c.maxPoint < instrs.size) :
+    ∀ (q : Point) (h : q < (compile c k instrs hbound).1.size),
+      ((compile c k instrs hbound).1[q]).targetsLt n := by
   induction c generalizing k instrs with
   | skip p =>
       simpa [compile] using
         (place_targetsLt (instrs := instrs) (n := n) (p := p)
-          (i := .atomic .skip k) hinv hk)
+          (i := .atomic .skip k) hbound hinv hk)
   | assign p x e =>
       simpa [compile] using
         (place_targetsLt (instrs := instrs) (n := n) (p := p)
-          (i := .atomic (.assign x e) k) hinv hk)
+          (i := .atomic (.assign x e) k) hbound hinv hk)
   | store p a i v =>
       simpa [compile] using
         (place_targetsLt (instrs := instrs) (n := n) (p := p)
-          (i := .atomic (.store a i v) k) hinv hk)
+          (i := .atomic (.store a i v) k) hbound hinv hk)
   | assert p b =>
       simpa [compile] using
         (place_targetsLt (instrs := instrs) (n := n) (p := p)
-          (i := .atomic (.assert b) k) hinv hk)
+          (i := .atomic (.assert b) k) hbound hinv hk)
   | ite p b t e iht ihe =>
-      have hbound' : max p (max t.maxPoint e.maxPoint) < n := by
+      have hbound' : max p (max t.maxPoint e.maxPoint) < instrs.size := by
         simpa [maxPoint] using hbound
-      have hte : max t.maxPoint e.maxPoint < n :=
+      have hp : p < instrs.size :=
+        Nat.lt_of_le_of_lt (Nat.le_max_left p (max t.maxPoint e.maxPoint)) hbound'
+      have hte : max t.maxPoint e.maxPoint < instrs.size :=
         Nat.lt_of_le_of_lt (Nat.le_max_right p (max t.maxPoint e.maxPoint)) hbound'
-      have htn : t.maxPoint < n := Nat.lt_of_le_of_lt (Nat.le_max_left _ _) hte
-      have hen : e.maxPoint < n := Nat.lt_of_le_of_lt (Nat.le_max_right _ _) hte
-      let instrs1 : Array Instr := place instrs p (.branch b t.entry e.entry)
+      have htn : t.maxPoint < n := by
+        have := Nat.lt_of_le_of_lt (Nat.le_max_left _ _) hte
+        simpa [hsize] using this
+      have hen : e.maxPoint < n := by
+        have := Nat.lt_of_le_of_lt (Nat.le_max_right _ _) hte
+        simpa [hsize] using this
+      let instrs1 : Array Instr := place instrs p (.branch b t.entry e.entry) hp
       have hsize1 : instrs1.size = n := by
         dsimp [instrs1]
-        rw [place_size, hsize]
+        rw [place_size instrs p (.branch b t.entry e.entry) hp, hsize]
       have hinv1 : ∀ (q : Point) (h : q < instrs1.size),
           (instrs1[q]).targetsLt n := by
         dsimp [instrs1]
-        exact place_targetsLt hinv (by
+        exact place_targetsLt hp hinv (by
           simp [Instr.targetsLt]
           exact ⟨Nat.lt_of_le_of_lt (entry_le_maxPoint (c := t)) htn,
                  Nat.lt_of_le_of_lt (entry_le_maxPoint (c := e)) hen⟩)
-      have hsize2 : (compile e k instrs1).size = n := by
-        rw [compile_size, hsize1]
-      have hinv2 : ∀ (q : Point) (h : q < (compile e k instrs1).size),
-          ((compile e k instrs1)[q]).targetsLt n :=
-        ihe (k := k) (instrs := instrs1) hsize1 hinv1 hk hen
-      have hres := iht (k := k) (instrs := compile e k instrs1) hsize2 hinv2 hk htn
-      change ∀ (q : Point) (h : q < (compile t k (compile e k instrs1)).size),
-        ((compile t k (compile e k instrs1))[q]).targetsLt n
-      exact hres
+      have he1 : e.maxPoint < instrs1.size := by simpa [hsize1] using hen
+      let inner := compile e k instrs1 he1
+      have hinner : inner.1.size = n := by
+        rw [compile_size e k instrs1 he1, hsize1]
+      have hinv2 : ∀ (q : Point) (h : q < inner.1.size),
+          (inner.1[q]).targetsLt n :=
+        ihe (k := k) (instrs := instrs1) hsize1 hinv1 hk he1
+      have ht2 : t.maxPoint < inner.1.size := by simpa [hinner] using htn
+      let outer := compile t k inner.1 ht2
+      have hres := iht (k := k) (instrs := inner.1) hinner hinv2 hk ht2
+      simpa [compile] using hres
   | «while» p b body ih =>
-      have hbound' : max p body.maxPoint < n := by
+      have hbound' : max p body.maxPoint < instrs.size := by
         simpa [maxPoint] using hbound
-      have hpn : p < n := Nat.lt_of_le_of_lt (Nat.le_max_left p body.maxPoint) hbound'
-      have hbn : body.maxPoint < n :=
-        Nat.lt_of_le_of_lt (Nat.le_max_right p body.maxPoint) hbound'
-      let instrs1 : Array Instr := place instrs p (.branch b body.entry k)
+      have hpn : p < n := by
+        have := Nat.lt_of_le_of_lt (Nat.le_max_left p body.maxPoint) hbound'
+        simpa [hsize] using this
+      have hbn : body.maxPoint < n := by
+        have := Nat.lt_of_le_of_lt (Nat.le_max_right p body.maxPoint) hbound'
+        simpa [hsize] using this
+      have hp : p < instrs.size :=
+        Nat.lt_of_le_of_lt (Nat.le_max_left p body.maxPoint) hbound'
+      let instrs1 : Array Instr := place instrs p (.branch b body.entry k) hp
       have hsize1 : instrs1.size = n := by
         dsimp [instrs1]
-        rw [place_size, hsize]
+        rw [place_size instrs p (.branch b body.entry k) hp, hsize]
       have hinv1 : ∀ (q : Point) (h : q < instrs1.size),
           (instrs1[q]).targetsLt n := by
         dsimp [instrs1]
-        exact place_targetsLt hinv (by
+        exact place_targetsLt hp hinv (by
           simp [Instr.targetsLt]
           exact ⟨Nat.lt_of_le_of_lt (entry_le_maxPoint (c := body)) hbn, hk⟩)
-      have hres := ih (k := p) (instrs := instrs1) hsize1 hinv1 hpn hbn
-      change ∀ (q : Point) (h : q < (compile body p instrs1).size),
-        ((compile body p instrs1)[q]).targetsLt n
-      exact hres
+      have hb1 : body.maxPoint < instrs1.size := by simpa [hsize1] using hbn
+      have hres := ih (k := p) (instrs := instrs1) hsize1 hinv1 hpn hb1
+      simpa [compile] using hres
   | seq a b iha ihb =>
-      have hbound' : max a.maxPoint b.maxPoint < n := by
+      have hbound' : max a.maxPoint b.maxPoint < instrs.size := by
         simpa [maxPoint] using hbound
-      have han : a.maxPoint < n := Nat.lt_of_le_of_lt (Nat.le_max_left _ _) hbound'
-      have hbn : b.maxPoint < n := Nat.lt_of_le_of_lt (Nat.le_max_right _ _) hbound'
-      have hres_b := ihb (k := k) (instrs := instrs) hsize hinv hk hbn
-      have hsize_b : (compile b k instrs).size = n := by
-        rw [compile_size, hsize]
+      have han : a.maxPoint < n := by
+        have := Nat.lt_of_le_of_lt (Nat.le_max_left _ _) hbound'
+        simpa [hsize] using this
+      have hbn : b.maxPoint < n := by
+        have := Nat.lt_of_le_of_lt (Nat.le_max_right _ _) hbound'
+        simpa [hsize] using this
+      have han' : a.maxPoint < instrs.size :=
+        Nat.lt_of_le_of_lt (Nat.le_max_left _ _) hbound'
+      have hbn' : b.maxPoint < instrs.size :=
+        Nat.lt_of_le_of_lt (Nat.le_max_right _ _) hbound'
+      let resb := compile b k instrs hbn'
+      have hres_b := ihb (k := k) (instrs := instrs) hsize hinv hk hbn'
+      have hsize_b : resb.1.size = n := by
+        rw [compile_size b k instrs hbn', hsize]
+      have hres_b' : ∀ (q : Point) (h : q < resb.1.size),
+          (resb.1[q]).targetsLt n := by
+        simpa [resb] using hres_b
       have hk' : b.entry < n :=
         Nat.lt_of_le_of_lt (entry_le_maxPoint (c := b)) hbn
-      have hres_a := iha (k := b.entry) (instrs := compile b k instrs)
-        hsize_b hres_b hk' han
-      change ∀ (q : Point) (h : q < (compile a b.entry (compile b k instrs)).size),
-        ((compile a b.entry (compile b k instrs))[q]).targetsLt n
-      exact hres_a
+      have ha1 : a.maxPoint < resb.1.size := by simpa [hsize_b] using han
+      have hres_a := iha (k := b.entry) (instrs := resb.1) hsize_b hres_b' hk' ha1
+      simpa [compile, resb] using hres_a
 
 end Cmd
+
+namespace Program
+
+/-- Decidable source well-formedness: the point list is exactly
+`0 .. maxPoint` (dense and unique), `maxPoint` is bounded, every array index is
+declared, and every read variable is assigned somewhere.
+
+This is the frontend contract. `Program.compile` assumes it; `compileChecked`
+validates it before compiling. -/
+def checkWF (p : Program) : Bool :=
+  Nat.blt p.body.maxPoint maxProgramPoints &&
+  (p.body.points.length == p.body.maxPoint + 1) &&
+  (p.body.points.eraseDups.length == p.body.points.length) &&
+  p.body.points.all (fun q => Nat.blt q (p.body.maxPoint + 1)) &&
+  p.body.arrs.all (fun a => Nat.blt a p.arrays.size) &&
+  p.body.readVars.all (fun x => varMem x p.body.assignedVars)
+
+/-- Source well-formedness as a proposition. -/
+def WF (p : Program) : Prop := p.checkWF = true
+
+end Program
 
 /-- Compile a program to a CFG.
 
 The array is sized to hold every program point plus one halt slot; the halt slot
 is a self-looping `skip`, so reaching it is a safe stutter rather than an error.
-A malformed program with duplicate points gets last-write-wins; the frontend's
-uniqueness invariant is what makes this deterministic in practice. -/
+
+This is the unchecked compiler: it assumes the frontend's `Program.WF`
+(dense unique points, declared arrays, assigned variables, bounded
+`maxPoint`). Use `compileChecked` at an untrusted boundary. -/
 def Program.compile (p : Program) : CFG :=
   let halt : Point := p.body.maxPoint + 1
   let instrs : Array Instr := Array.replicate (halt + 1) (.atomic .skip halt)
+  have hbound : p.body.maxPoint < instrs.size := by
+    simp [instrs, halt]
+    omega
   { entry := p.entry,
-    instrs := Cmd.compile p.body halt instrs }
+    instrs := (Cmd.compile p.body halt instrs hbound).1 }
 
 /-- **F2 — compiled CFGs are well formed.**
 
@@ -760,8 +950,10 @@ theorem Program.compile_wf (p : Program) : (Program.compile p).WF := by
     simp [Instr.targetsLt, instrs, halt]
   have hcomp := Cmd.compile_targetsLt (c := p.body) (k := halt) (instrs := instrs)
     (n := instrs.size) rfl hinv hk hbound
+  have hcomp_size : (Cmd.compile p.body halt instrs hbound).1.size = instrs.size :=
+    Cmd.compile_size p.body halt instrs hbound
   constructor
-  · simpa [Program.compile, Program.entry, instrs, halt, Cmd.compile_size] using
+  · simpa [Program.compile, Program.entry, instrs, halt, hcomp_size] using
       (Nat.lt_of_le_of_lt (Cmd.entry_le_maxPoint (c := p.body)) hbound)
   · intro q i hi
     have hq : q < (Program.compile p).instrs.size := by
@@ -773,17 +965,35 @@ theorem Program.compile_wf (p : Program) : (Program.compile p).WF := by
         simp at hi
     have hget : (Program.compile p).instrs[q] = i :=
       CFG.instrAt_getElem hi hq
-    have hq'' : q < (Cmd.compile p.body halt instrs).size := by
+    have hq'' : q < (Cmd.compile p.body halt instrs hbound).1.size := by
       simpa [Program.compile, instrs, halt] using hq
     have hq' : q < instrs.size := by
-      simpa [Cmd.compile_size] using hq''
+      simpa [hcomp_size] using hq''
     have htarget : i.targetsLt (Program.compile p).instrs.size := by
       have h := hcomp q hq''
-      have h2 : (Cmd.compile p.body halt instrs)[q] = i := by
+      have h2 : (Cmd.compile p.body halt instrs hbound).1[q] = i := by
         simpa [Program.compile, instrs, halt] using hget
       rw [h2] at h
-      simpa [Program.compile, instrs, halt, Cmd.compile_size] using h
+      simpa [Program.compile, instrs, halt, hcomp_size] using h
     exact htarget
+
+/-- Validate source well-formedness before compiling. This is the fail-closed
+entry point: a malformed program returns `none` instead of being silently
+truncated. -/
+def Program.compileChecked (p : Program) : Option CFG :=
+  if p.checkWF then some (Program.compile p) else none
+
+/-- A checked compilation only returns well-formed CFGs. -/
+theorem Program.compileChecked_wf {p : Program} {cfg : CFG}
+    (h : p.compileChecked = some cfg) : cfg.WF := by
+  unfold Program.compileChecked at h
+  cases hwf : p.checkWF with
+  | true =>
+      simp [hwf] at h
+      rw [← h]
+      exact Program.compile_wf p
+  | false =>
+      simp [hwf] at h
 
 namespace CFG
 
