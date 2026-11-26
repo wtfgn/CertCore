@@ -52,8 +52,8 @@ Status values: `todo` · `in-progress` · `proved` · `post-month`.
   M2.3; **T4b `join_sound`** is proved at M2.4; **`top_sound`** is proved at
   M2.5; **T4c `evalExpr_sound`/`assign_sound`** is proved at M2.6; array
   read/len and the `idxWithin` bounds obligation are M2.7; the assembled
-  `CertDomain` instance is M2.8, and `entails_sound` follows with the checker at
-  M3.
+  `CertDomain` instance is M2.8 and its ten hand-computed cases are M2.9.
+  `entails_sound` follows with the checker at M3.
 - **Gamma is a predicate, not a `Set`.** Lean core (and this Mathlib-free
   tree) has no `Set` type, so the interval instance exposes
   `Interval.gamma : Interval → I32 → Prop`, and `gamma i v` is the plan's

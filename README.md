@@ -5,7 +5,7 @@ Precision is purchasable with certificate bytes, at a fixed trusted computing ba
 
 | | |
 |---|---|
-| Status | **M2 — interval domain (in progress).** M1 semantics core is merged; the interval value type (M2.1), membership (M2.2), inclusion + T4a (M2.3), convex-hull join + T4b (M2.4), top + top_sound (M2.5), arithmetic transfer + T4c (M2.6), array read/len + bounds (M2.7) and the assembled `CertDomain` instance (M2.8) are in; the ten hand-computed interval tests (M2.9) are next. No parser, decoder or checker yet |
+| Status | **M2 complete — interval domain.** M1 semantics core is merged; M2.1–M2.9 cover the interval value type, membership, inclusion (T4a), convex-hull join (T4b), top, arithmetic/array transfer (T4c), `idxWithin`, the assembled `CertDomain` instance and ten hand-computed unit cases. The checker/decoder (M3–M4) is next. |
 | Trusted core | Lean 4 (`lean/CertCore/`), no Mathlib |
 | Untrusted | Haskell analyzer (M5), Python experiment harness (M10) |
 | Interface | JSON certificates, `docs/certificate-v1.md` |
@@ -97,6 +97,7 @@ $ lake env lean lean/Tests/Top.lean               # top-element checks
 $ lake env lean lean/Tests/Transfer.lean          # arithmetic-transfer checks
 $ lake env lean lean/Tests/Arrays.lean            # array read/len and bounds checks
 $ lake env lean lean/Tests/Instance.lean          # assembled CertDomain checks
+$ lake env lean lean/Tests/IntervalUnit.lean      # ten hand-computed interval cases
 $ grep -rnE '\bsorry\b' lean --include='*.lean'  # must print nothing
 $ lake env lean lean/CertCore/Audit.lean         # prints M1 footprint; every line [propext, Quot.sound] or smaller
 ```
