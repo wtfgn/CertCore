@@ -5,7 +5,7 @@ Precision is purchasable with certificate bytes, at a fixed trusted computing ba
 
 | | |
 |---|---|
-| Status | **M0 — bootstrap.** Build green, trust gates live, certificate format v1 specified. No checker yet: M1–M4 build it |
+| Status | **M1 — semantics core.** Build green; `I32`, AST/CFG, `eval`/`step`/`run`/`Safe`, edges, T1/T2, `compile_wf`/`step_edge`, `Program.WF`/`compileChecked`, and the three example fixtures are done. No parser, domain, decoder, or checker yet: M2–M4 build them |
 | Trusted core | Lean 4 (`lean/CertCore/`), no Mathlib |
 | Untrusted | Haskell analyzer (M5), Python experiment harness (M10) |
 | Interface | JSON certificates, `docs/certificate-v1.md` |
@@ -28,21 +28,22 @@ $ lake build
 Build completed successfully.
 
 $ lake exe certcore
-certcore 0.1.0 (M0 bootstrap: checker not implemented yet)
+certcore 0.1.0 (M1 semantics core: checker not implemented yet)
 
-$ lake env lean lean/CertCore/Audit.lean    # axiom audit; silent = clean
+$ lake env lean lean/CertCore/Audit.lean    # M1 axiom audit; every line [propext, Quot.sound] or smaller
 ```
 
 ## Layout
 
 | Path | Role | Trusted? |
 |---|---|---|
-| `lean/CertCore/Semantics.lean` | AST, fuel-indexed `step`/`run`, `Safe` | **yes** (M1) |
+| `lean/CertCore/I32.lean` | signed 32-bit integers; checked and wrapping arithmetic | **yes** (M1.1) |
+| `lean/CertCore/Semantics.lean` | syntax, state, `eval`, `compile`, `step`, `run`/`Safe`, `edges`, `CFG.WF`/`compile_wf`, `step_edge`, `Program.WF`/`compileChecked` (M1.2–M1.8), T1/T2 proved (M1.9–M1.10) | **yes** |
 | `lean/CertCore/Domain.lean` | `CertDomain` interface, combinators | **yes** (M2, M6) |
 | `lean/CertCore/Cert.lean` | certificate type, total JSON decoder | **yes** (M4) |
 | `lean/CertCore/Check.lean` | three obligation families, typed diagnostic | **yes** (M3) |
 | `lean/CertCore/Proofs.lean` | theorem inventory T1–T10 | **yes** |
-| `lean/CertCore/Audit.lean` | `#print axioms check_sound` | **yes** (M3.8) |
+| `lean/CertCore/Audit.lean` | `#print axioms` for T1/T2, `compile_wf`, `compileChecked_wf`, `step_edge` (M1); `check_sound` at M3.8 | **yes** |
 | `haskell/` | fixpoint engine, widening, certificate emitter | no (M5) |
 | `examples/` | `.imp` benchmark programs | no (M1.11, M10.1) |
 | `bench/` | harness, mutation fuzzer, plotting | no (M10) |
@@ -50,11 +51,12 @@ $ lake env lean lean/CertCore/Audit.lean    # axiom audit; silent = clean
 
 ## The trust boundary
 
-Trusted: the Lean kernel and its toolchain, the parser/CFG (written in Lean so
-the TCB is one language), the semantics, the certificate decoder, the checker,
-and the one generic soundness theorem. Untrusted: everything that proposes
-invariants. A buggy widening yields a rejected certificate, never a wrong
-verdict. See [`docs/TCB.md`](docs/TCB.md) and the audit command above.
+Trusted: the Lean kernel and its toolchain, the compiler/CFG (written in Lean so
+the TCB is one language; the parser arrives at M4.5), the semantics, the
+certificate decoder, the checker, and the one generic soundness theorem.
+Untrusted: everything that proposes invariants. A buggy widening yields a
+rejected certificate, never a wrong verdict. See [`docs/TCB.md`](docs/TCB.md)
+and the audit command above.
 
 ## Documents
 
@@ -63,14 +65,25 @@ verdict. See [`docs/TCB.md`](docs/TCB.md) and the audit command above.
 - [`docs/certcore-roadmap.md`](docs/certcore-roadmap.md) — the *when*; it governs scheduling
 - [`docs/THEOREMS.md`](docs/THEOREMS.md) — the theorem contract, T1–T10
 - [`docs/certificate-v1.md`](docs/certificate-v1.md) — the wire format
+- [`docs/imp-syntax.md`](docs/imp-syntax.md) — the `.imp` surface syntax
 - [`docs/NONGOALS.md`](docs/NONGOALS.md) — the scope fence
 - [`docs/known-gaps.md`](docs/known-gaps.md) — anything not proved, documented
+- [`docs/M1-review.md`](docs/M1-review.md) — interim M1 review, with post-review fixes
 - [`docs/prior-art.md`](docs/prior-art.md) — what is borrowed, what is ours
 
 ## Reproducing the gates locally
 
 ```console
-$ lake build                                   # must be silent
+$ lake build                                     # must succeed, no warnings
+$ lake env lean lean/Tests/I32.lean              # executable boundary tests
+$ lake env lean lean/Tests/Syntax.lean           # syntax-layer checks
+$ lake env lean lean/Tests/State.lean            # state-layer checks
+$ lake env lean lean/Tests/Eval.lean             # evaluation checks
+$ lake env lean lean/Tests/Step.lean             # CFG/step checks
+$ lake env lean lean/Tests/Run.lean              # run/Safe checks
+$ lake env lean lean/Tests/Edges.lean            # edge-projection checks
+$ lake env lean lean/Tests/Compile.lean          # maxPoint + CFG well-formedness
+$ lake env lean lean/Tests/Examples.lean         # example-program checks
 $ grep -rnE '\bsorry\b' lean --include='*.lean'  # must print nothing
-$ lake env lean lean/CertCore/Audit.lean        # must be silent
+$ lake env lean lean/CertCore/Audit.lean         # prints M1 footprint; every line [propext, Quot.sound] or smaller
 ```

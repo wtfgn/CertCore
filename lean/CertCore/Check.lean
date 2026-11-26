@@ -4,7 +4,7 @@
 The checker: three obligation families, a typed diagnostic, and **no search**
 (project plan §4.1, §5).
 
-Status: **stub** (M0). Filled in by M3 and the kernel theorem T5.
+Status: **planned** (M3). The M1 tree has the semantics and edges, but no checker.
 
 Obligations (each decided by a single `ble` call):
 

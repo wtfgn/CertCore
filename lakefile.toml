@@ -12,7 +12,7 @@ srcDir = "lean"
 [[lean_lib]]
 name = "CertCore"
 
-# `certcore check <program.imp> <cert.json>` (M4.5). At M0 this only prints
+# `certcore check <program.imp> <cert.json>` (M4.5). At M1 this only prints
 # its version; the checker itself does not exist yet.
 [[lean_exe]]
 name = "certcore"

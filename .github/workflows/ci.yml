@@ -34,6 +34,45 @@ jobs:
       - name: Build (proofs and checker)
         run: lake build
 
+      # Executable boundary tests for the machine-integer model (M1.1). The
+      # cases are `#guard`s and `#guard_msgs`s, so a drifted value fails this
+      # step; a green run means every boundary case still holds.
+      - name: I32 smoke tests
+        run: lake env lean lean/Tests/I32.lean
+
+      # Syntax-layer checks (M1.2-M1.3): derived entry points and structural equality.
+      - name: Syntax smoke tests
+        run: lake env lean lean/Tests/Syntax.lean
+
+      # State-layer checks (M1.4): total environment/memory, initialisation, updates.
+      - name: State smoke tests
+        run: lake env lean lean/Tests/State.lean
+
+      # Evaluation checks (M1.5): failure modes, truncating division, strict conditions.
+      - name: Eval smoke tests
+        run: lake env lean lean/Tests/Eval.lean
+
+      # CFG compilation and one-step checks (M1.6).
+      - name: Step smoke tests
+        run: lake env lean lean/Tests/Step.lean
+
+      # Fuel-indexed run and safety checks (M1.7).
+      - name: Run smoke tests
+        run: lake env lean lean/Tests/Run.lean
+
+      # Checker-facing edge projection (M1.8).
+      - name: Edges smoke tests
+        run: lake env lean lean/Tests/Edges.lean
+
+      # F1/F2 regression checks: maxPoint covers branch/loop bodies, and
+      # Program.compile_wf holds for representative program shapes.
+      - name: Compile/WF smoke tests
+        run: lake env lean lean/Tests/Compile.lean
+
+      # The three example fixtures and their run outcomes (M1.11).
+      - name: Example smoke tests
+        run: lake env lean lean/Tests/Examples.lean
+
       # Roadmap §2 rule 5: main never carries an undocumented unproved goal.
       # Word-boundary match so `sorryAx` in prose does not trip it.
       - name: Reject 'sorry' in the trusted tree
@@ -44,9 +83,10 @@ jobs:
           fi
           echo "No unproved goals in lean/."
 
-      # M3.8 adds `#print axioms check_sound` to the script; M11.4 turns the
-      # footprint into a gate. At M0 this only proves the script elaborates.
-      - name: Audit script elaborates
+      # M1 audit: prints the footprint of T1/T2, compile_wf, and step_edge.
+      # Every line should be [propext, Quot.sound] or smaller. M3.8 adds
+      # `#print axioms check_sound`; M11.4 turns this into a comparison gate.
+      - name: Axiom audit (M1 footprint)
         run: lake env lean lean/CertCore/Audit.lean
 
   # haskell job: added in M5, once the stack/cabal decision is made.
