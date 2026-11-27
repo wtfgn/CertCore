@@ -274,14 +274,14 @@ def checkInit (D : CertDomain) (p : Program) (cert : Certificate D.Abs) :
 
 /-! ## M3.5 edge obligation
 
-For every CFG edge and every label, check
-`ble (transfer c (at src)) (at dst)`. This M3.5 instance uses the identity label
-update (the flat `none` scheme); branch-history successor labels are M9.3. A
+For every CFG edge and the flat label 0, check
+`ble (transfer c (at src)) (at dst)`. M3 is flat-label only; branch-history
+successor labels and the multi-label loop are M9.3. A
 missing target state is `⊤`; an explicit `bot` target is a failure unless the
 source is itself unreachable (`bot`), in which case the edge is skipped.
 
 Labels are checked by `List.range cert.labels`; the shape contract guarantees
-`1 ≤ labels ≤ 64`. -/
+`labels = 1` in M3. -/
 
 /-- Edge obligations for one edge, over every label. -/
 def checkEdgeLabels (D : CertDomain) (p : Program) (cert : Certificate D.Abs)

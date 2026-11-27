@@ -81,15 +81,18 @@ theorem checkInitFrom_ok {D : CertDomain} {p : Program} {cert : Certificate D.Ab
 theorem wellFormed_entry_label {Abs : Type} {p : Program} {cert : Certificate Abs}
     (h : cert.wellFormed p = true) : cert.entry.label < cert.labels := by
   have h' := h
-  simp only [Certificate.wellFormed, Bool.and_eq_true, Nat.blt_eq, Nat.ble_eq] at h'
-  exact h'.1.1.1.1.2
+  simp only [Certificate.wellFormed, Bool.and_eq_true, Nat.blt_eq,
+    decide_eq_true_eq] at h'
+  have hlabels : cert.labels = 1 := h'.1.1.1.1.1.1
+  have hlt : cert.entry.label < cert.labels := h'.1.1.1.1.2
+  omega
 
 theorem wellFormed_entry_point {Abs : Type} {p : Program} {cert : Certificate Abs}
     (h : cert.wellFormed p = true) : cert.entry.point = p.entry := by
   have h' := h
-  simp only [Certificate.wellFormed, Bool.and_eq_true, Nat.blt_eq, Nat.ble_eq] at h'
-  have hb : cert.entry.point.beq p.entry = true := h'.1.1.1.2
-  exact Nat.beq_eq.mp hb
+  simp only [Certificate.wellFormed, Bool.and_eq_true, Nat.blt_eq,
+    decide_eq_true_eq] at h'
+  exact h'.1.1.1.2
 
 theorem checkInit_entry {D : CertDomain} {p : Program} {cert : Certificate D.Abs}
     (h : checkInit D p cert = .ok ()) (hwf : cert.wellFormed p = true) :

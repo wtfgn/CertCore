@@ -8,8 +8,8 @@ Run with:
 
     lake env lean lean/Tests/CheckInit.lean
 
-The entry state must contain `initOf p` for every label at the entry point.
-Missing other labels are `top`; an explicit `bot` entry is rejected.
+M3 is flat-label only: the entry state at label 0 must contain `initOf p`.
+An explicit `bot` entry is rejected. The all-label loop is retained for M9.
 -/
 
 open CertCore
@@ -37,15 +37,7 @@ def badEntry : Certificate D.Abs :=
 def botEntry : Certificate D.Abs :=
   { valid with entry := { point := 0, label := 0, state := none } }
 
-def badOtherLabel : Certificate D.Abs :=
-  Certificate.ofSparse 2 2
-    { point := 0, label := 0, state := some good }
-    [ { point := 0, label := 1, state := some bad } ]
 
-def missingOtherLabel : Certificate D.Abs :=
-  Certificate.ofSparse 2 2
-    { point := 0, label := 0, state := some good }
-    []
 
 #guard valid.wellFormed p0
 #guard (check D p0 valid).isOk
@@ -54,10 +46,6 @@ def missingOtherLabel : Certificate D.Abs :=
 #guard !(D.ble (D.initOf p0) bad)
 #guard !(check D p0 badEntry).isOk
 #guard !(check D p0 botEntry).isOk
-#guard !(check D p0 badOtherLabel).isOk
-
--- A missing other label is `top`, so init passes.
-#guard (check D p0 missingOtherLabel).isOk
 
 -- The failure is a typed init diagnostic at the entry point/label.
 #guard (match check D p0 badEntry with

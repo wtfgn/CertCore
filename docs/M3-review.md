@@ -10,21 +10,19 @@
 | `sorry` | none in `lean/` |
 | Axioms | `check_sound`: `[propext, Quot.sound]`; full `Audit.lean` clean |
 | Merge state | 8 commits ahead of `main` (`7a2856f`, M2); not merged, not pushed |
-| Verdict | **The checker is sound and T5 is genuinely closed, but M3 was not cost-complete or v1-conformant at the reviewed commit.** The sparse-map representation made every lookup linear, `wellFormed` was quadratic and recompiled the program per state, and a certificate state at the halt point was accepted despite v1 §3.1. The first two are fixed in the uncommitted post-review worktree (see the note below); the label and `hP` contracts still need decisions. |
+| Verdict | **The checker is sound and T5 is genuinely closed, but M3 was not cost-complete or v1-conformant at the reviewed commit.** The sparse-map representation made every lookup linear, `wellFormed` was quadratic and recompiled the program per state, and a certificate state at the halt point was accepted despite v1 §3.1. The post-review commits fix those two and restrict M3 to the flat one-label scheme; only the accepted `hP` premise and a scaling test remain. |
 
-> **Post-review fixes (committed in the following fix commit).** M3-F1 and M3-F4
-> are fixed. `Certificate` now stores a row-major
-> `Array (Option (Option Abs))`, `cellAt`/`lookup?` are O(1), `wellFormed`
-> checks the array length / entry cell / empty halt row without a per-state
-> `Program.compile` or `eraseDups`, and a state at the halt point is rejected.
-> The M3 tests were updated; two missing negative tests (non-WF source and a
-> corrupted golden certificate) and the halt-state test were added. `M3-F5` and
-> the `M3-F7` status lines were corrected. `M3-F2` (the accepted `hP` premise)
-> and `M3-F3` (identity labels vs branch history) remain contract decisions;
-> `M3-F6` still lacks a labels test and a scaling benchmark. Build is green,
-> 28/28 tests pass, and `check_sound` remains `[propext, Quot.sound]`. The
-> findings below describe the reviewed commit `b5494e5`; the post-fix
-> verification is in §8.
+> **Post-review fixes.** M3-F1 and M3-F4 are fixed. `Certificate` now stores a
+> row-major `Array (Option (Option Abs))`, `cellAt`/`lookup?` are O(1),
+> `wellFormed` checks the array length / entry cell / empty halt row without a
+> per-state `Program.compile` or `eraseDups`, and a state at the halt point is
+> rejected. M3-F3 is resolved by **restricting M3 to `labels = 1`**; branch
+> history stays M9.3. The M3 tests were updated; the non-WF source,
+> halt-state, labels-two rejection and corrupted-golden tests were added.
+> `M3-F5` and the `M3-F7` status lines were corrected. `M3-F6` now has the
+> label test; a scaling benchmark remains. Build is green, 28/28 tests pass, and
+> `check_sound` remains `[propext, Quot.sound]`. The findings below describe the
+> reviewed commit `b5494e5`; the post-fix verification is in §8.
 
 This review is based on reading every new M3 source and test file, re-reading
 `certificate-v1.md`, `THEOREMS.md`, `known-gaps.md` and the M3 roadmap, building
@@ -456,16 +454,16 @@ to redo the interface.
 
 ## 8. Post-review fix status
 
-Applied in the M3-F1/F4 fix commit (not part of the `b5494e5` snapshot):
+Applied in the post-review fix commits (not part of the `b5494e5` snapshot):
 
 | Finding | Status | Change |
 |---|---|---|
 | M3-F1 | **fixed** | Row-major `Array` certificate; O(1) `cellAt`/`lookup?`; `wellFormed` checks length, entry cell and halt row in O(1)+O(labels); no per-state `compile` or `eraseDups` |
 | M3-F2 | open (accepted contract) | `hP` remains a T5 premise; documented in `THEOREMS.md` and `Proofs.lean` |
-| M3-F3 | open | labels still use the identity update; M9.3 branch history is deferred |
+| M3-F3 | **fixed (restriction)** | `wellFormed` requires `labels = 1`; multi-label/branch-history certificates are rejected until M9.3 |
 | M3-F4 | **fixed** | `haltRowEmpty` rejects every label's halt cell; `CheckSkeleton` has a regression test |
 | M3-F5 | **fixed (docs)** | `known-gaps` now says exact `len`, branch-guard division, and assert-division precision correctly; `Check.lean` comment updated |
-| M3-F6 | partially fixed | added non-WF rejection, halt-state and corrupted-golden tests; labels and scaling tests remain |
+| M3-F6 | partially fixed | added non-WF, halt-state, labels-two rejection and corrupted-golden tests; a scaling benchmark remains |
 | M3-F7 | partially fixed | `Check.lean`/`Cert.lean` status, CLI banner and `known-gaps` T8 owner updated; `THEOREMS` T3 ownership still needs a decision |
 
 Verification of the worktree:
@@ -478,6 +476,6 @@ Verification of the worktree:
 | `#print axioms check_sound` | `[propext, Quot.sound]` |
 | `Audit.lean` | clean |
 
-The remaining merge blockers are therefore **M3-F2** (accept/record `hP`),
-**M3-F3** (restrict or implement labels), and **M3-F6** (labels/scaling test).
-M3-F1 and M3-F4 are no longer blockers.
+The remaining merge blockers are therefore **M3-F2** (record the accepted
+`hP` premise) and **M3-F6**'s scaling benchmark. M3-F1, M3-F3 and M3-F4 are no
+longer blockers.

@@ -65,13 +65,13 @@ def missingCert : Certificate D.Abs :=
   Certificate.ofSparse 1 3 goodEntry []
 #guard (check D pAssign missingCert).isOk
 
--- Multiple labels use the identity update at M3.5; both labels are checked.
+-- M3 restricts the checker to the flat one-label scheme; M9.3 adds labels.
 def twoLabels : Certificate D.Abs :=
   Certificate.ofSparse 2 3 goodEntry
     [ { point := 1, label := 0, state := some (st 1) },
       { point := 1, label := 1, state := some (st 2) } ]
 
-#guard twoLabels.wellFormed pAssign
+#guard !twoLabels.wellFormed pAssign
 #guard !(check D pAssign twoLabels).isOk
 
 -- A non-overwriting entry instruction must use the certificate's `entry` state,

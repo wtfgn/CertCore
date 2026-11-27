@@ -58,6 +58,10 @@ fixed:
   reject a valid invariant. See [`NONGOALS.md`](NONGOALS.md).
 - Certificates of unsafety are out of scope: the protocol proves safety
   properties, it does not produce counterexample certificates.
+- **M3 is flat-label only.** `Certificate.wellFormed` requires `labels = 1`;
+  multi-label and branch-history certificates are rejected as malformed until
+  M9.3 adds the trusted label update. This is a deliberate M3 limitation, not a
+  soundness gap: T5 is stated for the unlabelled semantics.
 - Label partitions are restricted to the finite schemes fixed by the trusted
   semantics; user-supplied partition functions are not accepted (see
   [`certificate-v1.md`](certificate-v1.md), "Open items").

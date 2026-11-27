@@ -45,7 +45,8 @@ structure StateAt (Abs : Type) where
 /-- The Lean-side certificate: the entry entry plus a row-major state array.
 
 `points` is the size of the compiled CFG's instruction array (`entry` included),
-so `|Points|` in v1 §3.1; `labels` is `labels.size`. The array has exactly
+so `|Points|` in v1 §3.1; `labels` is `labels.size`. M3 supports only the flat
+`labels = 1` scheme; M9.3 adds branch-history labels. The array has exactly
 `points * labels` cells. Sortedness is irrelevant to an array; uniqueness is
 structural. The checker validates the length, the entry cell and the halt row.
 -/
@@ -134,21 +135,21 @@ def haltRowEmpty {Abs : Type} (c : Certificate Abs) : Bool :=
 
 /-- Structural well-formedness of a certificate for a program (M3.3/M4).
 
-This is the shape contract, not the semantic invariant: labels are in v1 range,
-the point count is the compiled CFG's array size, the entry point is the
-program's entry point, the array has exactly `points * labels` cells, the entry
-key is absent from `states`, and the halt row is empty. There are no duplicate
+This is the shape contract, not the semantic invariant: M3 is flat-label only
+(`labels = 1`; branch history is M9.3), the point count is the compiled CFG's
+array size, the entry point is the program's entry point, the array has exactly
+`points * labels` cells, the entry key is absent from `states`, and the halt row
+is empty. There are no duplicate
 keys because the array is indexed by `(point,label)`.
 
 The decoder will enforce the same rules on the wire; the checker validates the
 typed value again so that a directly constructed `Certificate` cannot bypass
 them. Semantic obligations (init, edges, safety) are M3.4–M3.6, not here. -/
 def wellFormed {Abs : Type} (p : Program) (c : Certificate Abs) : Bool :=
-  Nat.blt 0 c.labels &&
-  Nat.ble c.labels 64 &&
+  decide (c.labels = 1) &&
   (c.points == (Program.compile p).instrs.size) &&
   Nat.blt c.entry.label c.labels &&
-  (c.entry.point == p.entry) &&
+  decide (c.entry.point = p.entry) &&
   (c.states.size == c.points * c.labels) &&
   cellAbsent c c.entry.point c.entry.label &&
   c.haltRowEmpty

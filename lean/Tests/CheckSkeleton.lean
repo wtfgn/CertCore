@@ -47,6 +47,11 @@ def withBot : Certificate D.Abs :=
 def badLabels : Certificate D.Abs :=
   { valid with labels := 0 }
 
+def labelsTwo : Certificate D.Abs :=
+  Certificate.ofSparse 2 2
+    { point := 0, label := 0, state := some topState }
+    []
+
 def badEntryPoint : Certificate D.Abs :=
   { valid with entry := { point := 1, label := 0, state := some topState } }
 
@@ -67,6 +72,8 @@ def haltState : Certificate D.Abs :=
     [ { point := 1, label := 0, state := some topState } ]
 
 #guard !badLabels.wellFormed p0
+#guard !labelsTwo.wellFormed p0
+#guard !(check D p0 labelsTwo).isOk
 #guard !badEntryPoint.wellFormed p0
 #guard !badEntryLabel.wellFormed p0
 #guard !badSize.wellFormed p0
