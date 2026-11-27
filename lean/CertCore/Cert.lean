@@ -91,6 +91,38 @@ def isBot? {Abs : Type} (c : Certificate Abs) (p : Point) (l : Label) : Bool :=
   | some none => true
   | _ => false
 
+/-- The `(point, label)` key of one certificate entry. -/
+def key {Abs : Type} (s : StateAt Abs) : Point × Label :=
+  (s.point, s.label)
+
+/-- All keys of the sparse map, in certificate order. -/
+def keys {Abs : Type} (c : Certificate Abs) : List (Point × Label) :=
+  c.states.map key
+
+/-- Structural well-formedness of a certificate for a program (M3.3/M4).
+
+This is the shape contract, not the semantic invariant: labels are in v1 range,
+the entry point is the program's entry point, every state key is in range, keys
+are unique, and the entry key is not repeated in `states`. The decoder will
+enforce the same rules on the wire; the checker validates the typed value again
+so that a directly constructed `Certificate` cannot bypass them.
+
+Semantic obligations (init, edges, safety) are M3.4–M3.6, not here. -/
+def wellFormed {Abs : Type} (p : Program) (c : Certificate Abs) : Bool :=
+  Nat.blt 0 c.labels &&
+  Nat.ble c.labels 64 &&
+  Nat.blt c.entry.label c.labels &&
+  (c.entry.point == p.entry) &&
+  c.states.all (fun s =>
+    Nat.blt s.label c.labels &&
+    Nat.blt s.point (Program.compile p).instrs.size) &&
+  (c.keys.eraseDups.length == c.keys.length) &&
+  !(c.keys.elem (c.entry.point, c.entry.label))
+
+/-- Propositional form of `wellFormed`, for checker soundness proofs. -/
+def WellFormed {Abs : Type} (p : Program) (c : Certificate Abs) : Prop :=
+  c.wellFormed p = true
+
 end Certificate
 
 end CertCore
