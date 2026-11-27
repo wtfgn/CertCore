@@ -58,10 +58,31 @@ def between (lo hi : Int) : Interval :=
 
 #guard Interval.leLo none (some (c 0))
 #guard !Interval.leLo (some (c 0)) none
+#guard Interval.leLo (some I32.min) none
 #guard Interval.leLo (some (c 1)) (some (c 2))
 #guard !Interval.leLo (some (c 2)) (some (c 1))
 
 #guard Interval.leHi (some (c 1)) (some (c 2))
-#guard !Interval.leHi none (some (c 2))
+#guard !Interval.leHi none (some (c 10))
+#guard Interval.leHi none (some I32.max)
 #guard Interval.leHi (some (c 1)) none
 #guard Interval.leHi none none
+
+/-! ## `ble_complete` (F4)
+
+The completeness half of T4: semantic inclusion implies the executable test. -/
+
+example {a b : Interval} (h : ∀ v, Interval.gamma a v → Interval.gamma b v) :
+    Interval.ble a b = true :=
+  Interval.ble_complete h
+
+-- The `i32Min`/`i32Max` edge cases are exactly what completeness needs.
+example : Interval.ble (Interval.ofBounds none (some (c 10)))
+    (Interval.ofBounds none (some I32.max)) := by
+  apply Interval.ble_complete
+  intro v hv
+  refine ⟨Interval.lowerOk_none v, ?_⟩
+  exact (Interval.upperOk_some I32.max v).2 (by
+    have hmax : I32.max.val = i32Max := rfl
+    rw [hmax]
+    exact v.le_max)

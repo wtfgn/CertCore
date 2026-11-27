@@ -177,16 +177,17 @@ theorem gamma_toInterval_iff {n v : I32} : gamma (toInterval n) v ↔ v = n := b
 `none` is `-∞` on the lower side and `+∞` on the upper side.
 -/
 
-/-- Lower-bound order: `none` is `-∞`. -/
+/-- Lower-bound order: `none` is `-∞`. `some i32Min` is also `-∞` in effect,
+because no `I32` lies below it; that edge case is what makes `ble` complete. -/
 def leLo : Option I32 → Option I32 → Bool
   | none, _ => true
-  | some _, none => false
+  | some a, none => a.val = i32Min
   | some a, some b => a.val ≤ b.val
 
-/-- Upper-bound order: `none` is `+∞`. -/
+/-- Upper-bound order: `none` is `+∞`. `some i32Max` is also `+∞` in effect. -/
 def leHi : Option I32 → Option I32 → Bool
   | none, none => true
-  | none, some _ => false
+  | none, some b => b.val = i32Max
   | some _, none => true
   | some a, some b => a.val ≤ b.val
 
@@ -211,12 +212,16 @@ theorem leLo_sound {lo1 lo2 : Option I32} (h : leLo lo2 lo1 = true) :
   | none =>
       cases lo2 with
       | none => exact lowerOk_none v
-      | some a2 => simp [leLo] at h
+      | some a2 =>
+          simp only [leLo] at h
+          have ha2 : a2.val = i32Min := by simpa using h
+          have hvmin : i32Min ≤ v.val := v.min_le
+          exact (lowerOk_some a2 v).2 (by omega)
   | some a1 =>
       cases lo2 with
       | none => exact lowerOk_none v
       | some a2 =>
-          simp [leLo] at h
+          have hle : a2.val ≤ a1.val := by simpa [leLo] using h
           have ha1 : a1.val ≤ v.val := (lowerOk_some a1 v).1 hv
           exact (lowerOk_some a2 v).2 (by omega)
 
@@ -229,12 +234,16 @@ theorem leHi_sound {hi1 hi2 : Option I32} (h : leHi hi1 hi2 = true) :
   | none =>
       cases hi2 with
       | none => exact upperOk_none v
-      | some a2 => simp [leHi] at h
+      | some a2 =>
+          simp only [leHi] at h
+          have ha2 : a2.val = i32Max := by simpa using h
+          have hvmax : v.val ≤ i32Max := v.le_max
+          exact (upperOk_some a2 v).2 (by omega)
   | some a1 =>
       cases hi2 with
       | none => exact upperOk_none v
       | some a2 =>
-          simp [leHi] at h
+          have hle : a1.val ≤ a2.val := by simpa [leHi] using h
           have ha1 : v.val ≤ a1.val := (upperOk_some a1 v).1 hv
           exact (upperOk_some a2 v).2 (by omega)
 
@@ -257,6 +266,146 @@ theorem ble_sound {a b : Interval} (h : ble a b = true) :
           have hl : lowerOk lo2 v := leLo_sound h'.1 v hv'.1
           have hu : upperOk hi2 v := leHi_sound h'.2 v hv'.2
           simpa [gamma] using And.intro hl hu
+
+/-! ## Completeness of `ble` (F4)
+
+`ble` is complete as well as sound: if every value of `a` is in `b`, then
+`ble a b = true`. The `i32Min`/`i32Max` endpoint cases in `leLo`/`leHi` are what
+make this true; without them, `[min, ...]` and `[..., max]` would be rejected as
+bounds for the unbounded intervals even though no `I32` lies outside them. -/
+
+/-- Every non-empty interval has a value. -/
+theorem exists_gamma (i : Interval) (h : i ≠ .bot) : ∃ v, gamma i v := by
+  cases i with
+  | bot => contradiction
+  | itv lo hi w =>
+      cases lo with
+      | none =>
+          cases hi with
+          | none => exact ⟨I32.zero, ⟨lowerOk_none _, upperOk_none _⟩⟩
+          | some b => exact ⟨b, ⟨lowerOk_none _, (upperOk_some b b).2 (by omega)⟩⟩
+      | some a =>
+          cases hi with
+          | none => exact ⟨a, ⟨(lowerOk_some a a).2 (by omega), upperOk_none _⟩⟩
+          | some b =>
+              have hab : a.val ≤ b.val := by simpa [loLeHi] using w
+              exact ⟨a, ⟨(lowerOk_some a a).2 (by omega), (upperOk_some b a).2 hab⟩⟩
+
+/-- Completeness of the lower-bound comparison. -/
+theorem leLo_complete {lo1 lo2 : Option I32} {hi1 : Option I32}
+    (w1 : loLeHi lo1 hi1)
+    (h : ∀ v, lowerOk lo1 v → upperOk hi1 v → lowerOk lo2 v) :
+    leLo lo2 lo1 = true := by
+  cases lo1 with
+  | none =>
+      cases lo2 with
+      | none => rfl
+      | some a2 =>
+          by_cases ha : a2.val = i32Min
+          · simp [leLo, ha]
+          · exfalso
+            have hmin : gamma (.itv none hi1 w1) I32.min := by
+              refine ⟨lowerOk_none _, ?_⟩
+              cases hi1 with
+              | none => exact upperOk_none _
+              | some b1 =>
+                  exact (upperOk_some b1 I32.min).2 (by
+                    have := b1.min_le
+                    have hminv : I32.min.val = i32Min := rfl
+                    omega)
+            have hb := h I32.min hmin.1 hmin.2
+            have hle : a2.val ≤ i32Min := by
+              have := (lowerOk_some a2 I32.min).1 hb
+              have hminv : I32.min.val = i32Min := rfl
+              omega
+            have hge : i32Min ≤ a2.val := a2.min_le
+            have : a2.val = i32Min := by omega
+            exact ha this
+  | some a1 =>
+      cases lo2 with
+      | none => rfl
+      | some a2 =>
+          by_cases hle : a2.val ≤ a1.val
+          · simp [leLo, hle]
+          · exfalso
+            have hmem : gamma (.itv (some a1) hi1 w1) a1 := by
+              refine ⟨(lowerOk_some a1 a1).2 (by omega), ?_⟩
+              cases hi1 with
+              | none => exact upperOk_none _
+              | some b1 =>
+                  have hab : a1.val ≤ b1.val := by simpa [loLeHi] using w1
+                  exact (upperOk_some b1 a1).2 hab
+            have hb := h a1 hmem.1 hmem.2
+            have : a2.val ≤ a1.val := (lowerOk_some a2 a1).1 hb
+            exact hle this
+
+/-- Completeness of the upper-bound comparison. -/
+theorem leHi_complete {hi1 hi2 : Option I32} {lo1 : Option I32}
+    (w1 : loLeHi lo1 hi1)
+    (h : ∀ v, lowerOk lo1 v → upperOk hi1 v → upperOk hi2 v) :
+    leHi hi1 hi2 = true := by
+  cases hi1 with
+  | none =>
+      cases hi2 with
+      | none => rfl
+      | some b2 =>
+          by_cases hb : b2.val = i32Max
+          · simp [leHi, hb]
+          · exfalso
+            have hmax : gamma (.itv lo1 none w1) I32.max := by
+              refine ⟨?_, upperOk_none _⟩
+              cases lo1 with
+              | none => exact lowerOk_none _
+              | some a1 =>
+                  exact (lowerOk_some a1 I32.max).2 (by
+                    have := a1.le_max
+                    have hmaxv : I32.max.val = i32Max := rfl
+                    omega)
+            have hb' := h I32.max hmax.1 hmax.2
+            have hle : I32.max.val ≤ b2.val := (upperOk_some b2 I32.max).1 hb'
+            have hge : b2.val ≤ i32Max := b2.le_max
+            have : b2.val = i32Max := by
+              have hmaxv : I32.max.val = i32Max := rfl
+              omega
+            exact hb this
+  | some b1 =>
+      cases hi2 with
+      | none => rfl
+      | some b2 =>
+          by_cases hle : b1.val ≤ b2.val
+          · simp [leHi, hle]
+          · exfalso
+            have hmem : gamma (.itv lo1 (some b1) w1) b1 := by
+              refine ⟨?_, (upperOk_some b1 b1).2 (by omega)⟩
+              cases lo1 with
+              | none => exact lowerOk_none _
+              | some a1 =>
+                  have hab : a1.val ≤ b1.val := by simpa [loLeHi] using w1
+                  exact (lowerOk_some a1 b1).2 hab
+            have hb' := h b1 hmem.1 hmem.2
+            have : b1.val ≤ b2.val := (upperOk_some b2 b1).1 hb'
+            exact hle this
+
+/-- **T4 (inclusion completeness):** `ble` decides semantic inclusion exactly. -/
+theorem ble_complete {a b : Interval} (h : ∀ v, gamma a v → gamma b v) :
+    ble a b = true := by
+  cases a with
+  | bot =>
+      cases b with
+      | bot => rfl
+      | itv _ _ _ => rfl
+  | itv lo1 hi1 w1 =>
+      cases b with
+      | bot =>
+          exfalso
+          rcases exists_gamma (.itv lo1 hi1 w1) (by simp) with ⟨v, hv⟩
+          exact h v hv
+      | itv lo2 hi2 w2 =>
+          have hle : leLo lo2 lo1 = true :=
+            leLo_complete w1 (fun v hl hu => (h v ⟨hl, hu⟩).1)
+          have hhi : leHi hi1 hi2 = true :=
+            leHi_complete w1 (fun v hl hu => (h v ⟨hl, hu⟩).2)
+          simp [ble, hle, hhi]
 
 /-! ## Join (M2.4)
 

@@ -1388,5 +1388,43 @@ lemma depends only on `[propext, Quot.sound]` or smaller.
 
 **Verification.** `lake env lean lean/CertCore/Audit.lean` prints only
 `[propext, Quot.sound]` (or smaller); no `Classical.choice`, no `sorryAx`.
-All 20 test files pass; `POn_step`, `addGuarded_sound`, `subGuarded_sound`, and
-`cmpGuarded_sound` are unchanged and clean.
+At the F2 checkpoint, all 20 test files passed; `POn_step`, `addGuarded_sound`,
+`subGuarded_sound`, and `cmpGuarded_sound` were unchanged and clean.
+
+---
+
+## 14. Post-review fix — F3/F4 (2026-11-27)
+
+**F3: the showcase programs.** The two programs the M2 review said were rejected
+now close at the domain level.
+
+- `Interval.meet` (with `maxLo`/`minHi`) intersects two boxes; `meet_sound` is
+  proved in `IntervalTransfer` because its proof needs
+  `gamma_ofBounds_of_lower_upper`.
+- `Interval.div` is precise on singleton operands when `I32.div?` succeeds and
+  `top` otherwise; `div_sound` is proved. The transfer evaluators use it, so
+  `10 / [1,1] = [10,10]`.
+- `IntervalInstance` gains `restrictHi`/`restrictLo`/`restrictEq` and the strict
+  `restrictHiPred`/`restrictLoSucc` (with the `i32Min`/`i32Max` edge cases), then
+  `refineVar` and `refineAbs`. The `assume` transfer now refines single-variable
+  comparisons; conjunctions refine left-to-right, `not` flips the polarity, and
+  disjunctions/non-variable comparisons are left unchanged. `refineVar_sound`
+  and `refineAbs_sound` are proved and audit-clean.
+- `Tests/Demo.lean` pins the two showpieces: the `safe.imp` loop with head
+  `[0,3]` (body entry `[0,2]`, body exit `[1,3]`, exit `[3,3]`, assert
+  `x == 3`), and the certificate-v1 §13 program (`10/[1,1] -> [10,10]`,
+  `x != 0`, `¬(min = 10 ∧ x = -1)`, assert `y == 10`).
+
+**F4: `ble` completeness.** `leLo`/`leHi` now treat `some i32Min` as an
+effective `-∞` and `some i32Max` as an effective `+∞`; without those cases
+`[min, ...]`/`[..., max]` were rejected as bounds for unbounded intervals even
+though no `I32` lies outside them. `exists_gamma`, `leLo_complete`,
+`leHi_complete`, and `ble_complete` are proved. T8's statement now carries an
+explicit `InvariantEntailsSafety` hypothesis, with the inclusion half supplied
+by `ble_complete` and the safety half limited by the conservative `entails`
+(recorded in `known-gaps.md`).
+
+**Verification after F3/F4.** `lake build` green (29 jobs, no warnings); 21/21
+test files pass; `Audit.lean` lists 43 trusted lemmas and every one depends only
+on `[propext, Quot.sound]` or smaller; CI fails on `Classical.choice`/`sorryAx`.
+F3 is committed as `bf01dbb`; F4 is committed separately. F5–F8 remain.

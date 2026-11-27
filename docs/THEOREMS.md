@@ -16,7 +16,7 @@ Status values: `todo` · `in-progress` · `proved` · `post-month`.
 | **T5** | **`check_sound : check D p c = .ok → Program.safe p`**, where `Program.safe` requires `Program.WF` | **The kernel theorem** | **Medium** | todo | M3.7 | `Check.lean` |
 | **T6** | Product instance: `ble_sound`, `transfer_sound`, `join_sound` for `D₁ × D₂` | Combinator (a), genericity made executable | Low | todo | M6.2 | `Domain/Product.lean` |
 | **T7** | `reduce_sound : γ (ρ (a,b)) ⊆ γ a ∩ γ b` and `reduce_idem : ρ ∘ ρ = ρ` | Reduced product; **post-month** | **High** | post-month | M8 | `Domain/Reduce.lean` |
-| **T8** | `encode_accepts : IsPostFixpoint p I → check D p (encode p I) = .ok` | Usability / two-sidedness of the contract | Medium | todo | M3 | `Cert.lean` |
+| **T8** | `encode_accepts : IsPostFixpoint p I → InvariantEntailsSafety p I → check D p (encode p I) = .ok` | Usability / two-sidedness of the contract | Medium | todo | M3/M4 | `Cert.lean` |
 | **T9** | `label_sim : step# (s,κ) = some (s',κ') → step s = some s'` (+ converse, errors preserved) | **Path sensitivity as a product** | Medium | todo | M9.3 | `Semantics.lean` |
 | **T10** | `decode_sound : decode j = .ok c → WellFormedCert c` (malformed input ⇒ `Diagnostic.malformed`, never a crash) | R4 / adversarial input | Low–Medium | todo | M4.3 | `Cert.lean` |
 
@@ -66,6 +66,15 @@ Status values: `todo` · `in-progress` · `proved` · `post-month`.
   tree) has no `Set` type, so the interval instance exposes
   `Interval.gamma : Interval → I32 → Prop`, and `gamma i v` is the plan's
   `v ∈ γ i`. T4 and later statements use that form.
+- **T8 is two-sided only with an entailment hypothesis.** Its inclusion half is
+  now proved for intervals: `Interval.ble_complete` (F4) says semantic inclusion
+  implies `ble a b = true`. The `i32Min`/`i32Max` endpoint cases in
+  `leLo`/`leHi` are what make it complete: `some i32Min` is an effective `-∞`
+  lower bound and `some i32Max` an effective `+∞` upper bound, because no `I32`
+  lies outside them. The safety half of T8 cannot hold for an incomplete
+  `entails`; the statement therefore carries an explicit
+  `InvariantEntailsSafety` hypothesis (or must restrict to predicates the test
+  decides exactly). T8 itself is still M3/M4, where `check`/`encode` exist.
 - **T5's conclusion is `Program.safe`, which includes `Program.WF`.** A malformed
   source program has no meaning and is never certified safe; M3's checker must
   establish the decidable source contract (`checkWF`: dense unique points,

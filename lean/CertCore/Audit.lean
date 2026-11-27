@@ -34,6 +34,8 @@ namespace CertCore
 #print axioms Interval.gamma_toInterval
 #print axioms Interval.gamma_toInterval_iff
 #print axioms Interval.ble_sound
+#print axioms Interval.ble_complete
+#print axioms Interval.exists_gamma
 #print axioms Interval.join_sound
 #print axioms Interval.top_sound
 #print axioms Interval.evalExpr_sound
