@@ -1491,5 +1491,6 @@ two transfer semantics drifting without a proof that they agree. F7–F8 remain.
 
 **Verification.** Build green (29 jobs, no warnings); 21/21 test files pass;
 audit clean; CI fails on `Classical.choice`/`sorryAx`; `git diff --check`
-clean. F1/F2 → `3f7556b`, F3 → `bf01dbb`, F4 → `cd1c26f`, F6 → `cb39de5`; F5/F7/F8
-are docs/tests and are committed with F7.
+clean. F1/F2 → `3f7556b`, F3 → `bf01dbb`, F4 → `cd1c26f`, F6 → `cb39de5`; F5's
+format change landed with F6, and its review record plus the F7/F8 docs are in
+`e0e6848`.
