@@ -5,7 +5,7 @@ Precision is purchasable with certificate bytes, at a fixed trusted computing ba
 
 | | |
 |---|---|
-| Status | **M1 — semantics core.** Build green; `I32`, AST/CFG, `eval`/`step`/`run`/`Safe`, edges, T1/T2, `compile_wf`/`step_edge`, `Program.WF`/`compileChecked`, and the three example fixtures are done. No parser, domain, decoder, or checker yet: M2–M4 build them |
+| Status | **M2 complete — interval domain + F1–F8 post-review fixes.** M1 semantics core is merged; M2.1–M2.9 cover the interval value type, membership, inclusion (T4a), convex-hull join (T4b), top, arithmetic/array transfer (T4c), `idxWithin`, the assembled `CertDomain` instance and ten hand-computed unit cases. The review fixes add the checker-interface fields (`initOf`, `entails`, `P_step`; F1), a clean axiom audit (F2), guard refinement + singleton division (F3), `ble` completeness (F4), v1 array memory (F5), a single trusted transfer path (F6), doc consolidation (F7), and the interface/demo tests (F8). T8's generic completeness field is an M3.1 decision; the checker/decoder (M3–M4) is next. |
 | Trusted core | Lean 4 (`lean/CertCore/`), no Mathlib |
 | Untrusted | Haskell analyzer (M5), Python experiment harness (M10) |
 | Interface | JSON certificates, `docs/certificate-v1.md` |
@@ -28,9 +28,9 @@ $ lake build
 Build completed successfully.
 
 $ lake exe certcore
-certcore 0.1.0 (M1 semantics core: checker not implemented yet)
+certcore 0.1.0 (M2 interval domain; checker not implemented yet)
 
-$ lake env lean lean/CertCore/Audit.lean    # M1 axiom audit; every line [propext, Quot.sound] or smaller
+$ lake env lean lean/CertCore/Audit.lean    # M1/M2/F1–F4 axiom audit; every line [propext, Quot.sound] or smaller
 ```
 
 ## Layout
@@ -40,10 +40,14 @@ $ lake env lean lean/CertCore/Audit.lean    # M1 axiom audit; every line [propex
 | `lean/CertCore/I32.lean` | signed 32-bit integers; checked and wrapping arithmetic | **yes** (M1.1) |
 | `lean/CertCore/Semantics.lean` | syntax, state, `eval`, `compile`, `step`, `run`/`Safe`, `edges`, `CFG.WF`/`compile_wf`, `step_edge`, `Program.WF`/`compileChecked` (M1.2–M1.8), T1/T2 proved (M1.9–M1.10) | **yes** |
 | `lean/CertCore/Domain.lean` | `CertDomain` interface, combinators | **yes** (M2, M6) |
+| `lean/CertCore/Domain/Interval.lean` | interval value type, membership, inclusion/T4a, join/T4b and top (M2.1–M2.5) | **yes** |
+| `lean/CertCore/Domain/IntervalTransfer.lean` | checked endpoint arithmetic (`add`/`sub`), T4c (M2.6) | **yes** |
+| `lean/CertCore/Domain/IntervalArrays.lean` | abstract array state, `lenInterval`, `idxWithin` and its soundness (M2.7) | **yes** |
+| `lean/CertCore/Domain/IntervalInstance.lean` | assembled `CertDomain` instance: support-restricted `evalExprAbsOn`/`assignAbsOn`, `ble`/`top`/`join`/`transfer`, `entails`, `initOf`, `P_step` (M2.8/F1/F3/F6) | **yes** |
 | `lean/CertCore/Cert.lean` | certificate type, total JSON decoder | **yes** (M4) |
 | `lean/CertCore/Check.lean` | three obligation families, typed diagnostic | **yes** (M3) |
 | `lean/CertCore/Proofs.lean` | theorem inventory T1–T10 | **yes** |
-| `lean/CertCore/Audit.lean` | `#print axioms` for T1/T2, `compile_wf`, `compileChecked_wf`, `step_edge` (M1); `check_sound` at M3.8 | **yes** |
+| `lean/CertCore/Audit.lean` | `#print axioms` for M1/M2/F1–F4 trusted lemmas; CI fails on `Classical.choice`/`sorryAx`; `check_sound` at M3.8 | **yes** |
 | `haskell/` | fixpoint engine, widening, certificate emitter | no (M5) |
 | `examples/` | `.imp` benchmark programs | no (M1.11, M10.1) |
 | `bench/` | harness, mutation fuzzer, plotting | no (M10) |
@@ -69,6 +73,7 @@ and the audit command above.
 - [`docs/NONGOALS.md`](docs/NONGOALS.md) — the scope fence
 - [`docs/known-gaps.md`](docs/known-gaps.md) — anything not proved, documented
 - [`docs/M1-review.md`](docs/M1-review.md) — interim M1 review, with post-review fixes
+- [`docs/M2-review.md`](docs/M2-review.md) — interim M2 review: the interval domain, its interface gaps, and the decisions behind it
 - [`docs/prior-art.md`](docs/prior-art.md) — what is borrowed, what is ours
 
 ## Reproducing the gates locally
@@ -84,6 +89,18 @@ $ lake env lean lean/Tests/Run.lean              # run/Safe checks
 $ lake env lean lean/Tests/Edges.lean            # edge-projection checks
 $ lake env lean lean/Tests/Compile.lean          # maxPoint + CFG well-formedness
 $ lake env lean lean/Tests/Examples.lean         # example-program checks
+$ lake env lean lean/Tests/Interval.lean          # interval-type checks
+$ lake env lean lean/Tests/Gamma.lean             # interval-membership checks
+$ lake env lean lean/Tests/Ble.lean               # interval-inclusion checks
+$ lake env lean lean/Tests/BleSound.lean          # inclusion-soundness checks
+$ lake env lean lean/Tests/Join.lean              # convex-hull join checks
+$ lake env lean lean/Tests/Top.lean               # top-element checks
+$ lake env lean lean/Tests/Transfer.lean          # arithmetic-transfer checks
+$ lake env lean lean/Tests/Arrays.lean            # array read/len and bounds checks
+$ lake env lean lean/Tests/Instance.lean          # assembled CertDomain checks
+$ lake env lean lean/Tests/Interface.lean         # checker-interface fields (F1)
+$ lake env lean lean/Tests/Demo.lean              # guard refinement + singleton division (F3)
+$ lake env lean lean/Tests/IntervalUnit.lean      # ten hand-computed interval cases
 $ grep -rnE '\bsorry\b' lean --include='*.lean'  # must print nothing
-$ lake env lean lean/CertCore/Audit.lean         # prints M1 footprint; every line [propext, Quot.sound] or smaller
+$ lake env lean lean/CertCore/Audit.lean         # M1/M2/F1–F4 footprint; CI fails on Classical.choice/sorryAx
 ```

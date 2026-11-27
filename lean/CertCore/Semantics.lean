@@ -359,6 +359,22 @@ def varEq (x y : Var) : Bool :=
 def varMem (x : Var) (vars : List Var) : Bool :=
   vars.any (fun y => varEq x y)
 
+/-- `varMem` is sound for list membership. It is the computable membership the
+domain evaluators use, so their proofs do not depend on classical decidability
+of `List.Mem`. -/
+theorem varMem_sound {x : Var} {vars : List Var} (h : varMem x vars = true) :
+    x ∈ vars := by
+  unfold varMem at h
+  rcases List.any_eq_true.mp h with ⟨y, hy, hxy⟩
+  have hxy' : x = y := by
+    cases hd : String.decEq x y with
+    | isTrue hEq => exact hEq
+    | isFalse hne =>
+        have hfalse : varEq x y = false := by simp [varEq, hd]
+        rw [hfalse] at hxy
+        simp at hxy
+  simpa [hxy'] using hy
+
 /-- A whole program: a command plus the constant length of every array.
 
 `arrays[i]` is the length of array `i`; array numbers used by `Expr.read`,

@@ -112,7 +112,7 @@ State is one of:
 
 | Encoding | Meaning |
 |---|---|
-| `{"kind":"itv","vars":{…}}` | a partial map from variable names to intervals; an absent variable is unconstrained (`⊤`) |
+| `{"kind":"itv","vars":{…},"mem":{…}}` | a partial map from variable names to intervals, plus an optional map from array numbers to one interval covering every cell; an absent variable or array is unconstrained (`⊤`) |
 | `{"kind":"bot"}` | the empty set: the point (and label) is unreachable |
 
 - Each interval is `{"lo": L, "hi": H}`, where `L`, `H` are integers in
@@ -124,11 +124,33 @@ State is one of:
 - An empty interval is not an encoding of bottom: `L > H` is malformed, and
   unreachability is `bot`.
 - **`⊤` is encoded by omission.** An absent variable is unconstrained, so an
-  explicit unbounded interval (`{"lo":null,"hi":null}`) is malformed. Each
-  abstract state therefore has exactly one encoding, and a state with every
-  variable unconstrained is `{"kind":"itv","vars":{}}`.
+  explicit unbounded interval (`{"lo":null,"hi":null}`) is malformed. The same
+  rule applies to `mem`: an absent array has the unconstrained summary `⊤`.
+  Each abstract state therefore has exactly one encoding, and a state with every
+  variable and array unconstrained is `{"kind":"itv","vars":{}}`.
 - Variable names must be variables of the checked program; an unknown name ⇒
-  malformed. `bot` carries no `vars`.
+  malformed. `bot` carries no `vars` and no `mem`.
+- `mem` is optional. Its keys are decimal array numbers (the declaration order
+  from `docs/imp-syntax.md`); an unknown array number ⇒ malformed. The interval
+  is a summary: every in-bounds cell of that array must lie in it. The array's
+  length is the program's declared length, not a certificate field. This is what
+  makes the M2.7 read/len transfer reachable end-to-end: absent array = `⊤`,
+  present array = the analyzer's summary.
+
+An example with an array summary (array 0's cells all in `[10,20]`):
+
+```json
+{"kind":"itv","vars":{"x":{"lo":0,"hi":0}},"mem":{"0":{"lo":10,"hi":20}}}
+```
+
+**Compatibility.** `mem` is a backward-compatible *extension* of the frozen
+`certcore/1` state schema: a certificate that omits it means “every array is
+`⊤`”, and that is exactly the pre-`mem` encoding. A certificate that uses `mem`
+requires a decoder that knows the field; a strict old decoder would reject it as
+an unknown field. Since no decoder exists yet, M4.1 must either (a) keep
+`certcore/1` and add the optional field with a decoder test, or (b) bump the
+format version for certificates that use `mem`. Record the choice with M4.2;
+until then, emit `mem` only for a `certcore/1`+`mem`-aware consumer.
 
 ### 5.2 Reserved kinds (not in v1)
 
@@ -176,6 +198,12 @@ missing state is discharged trivially; but any safety obligation at that point
 must then hold for **all** states, so omitting states forfeits precision, never
 soundness. An analyzer that omits a reachable state will normally see its safety
 obligation fail, not pass.
+
+The explicit `{"kind":"bot"}` state is a coverage marker: the checker represents a
+point's state as `Option Abs` (`none` = bot) and skips that point's obligations.
+It is not a `CertDomain` element (see the note at the end of `Domain.lean`):
+with a support-restricted `gamma`, an all-`bot` abstract state is not
+distinguishable from a non-empty one when the support is empty.
 
 ## 8. What the checker verifies
 
@@ -249,15 +277,31 @@ is cheap now and expensive after M4.2: say so before M3.1.
    version bump.
 5. **CLI contract** (M4.5): `certcore check prog.imp cert.json` exits `0` on
    accept, `1` on reject with a diagnostic, `2` on malformed input.
-6. **Safety entailment is a domain operation.** The plan's `CertDomain` sketch
-   (§4.2) carries only `ble`, and safety cannot be a `ble` call: `{x ≠ 0}` is
-   not one interval, so `x ∈ [-5,-1]` is safe but has no single interval target
-   to be included in. M2/M3 must add a sound, executable **entailment test**
-   `entails : Abs → BExp → Bool` — a three-valued abstract evaluation with the
-   answer "definitely true" only when every represented state satisfies the
-   predicate — plus its own soundness field. The wire format is unaffected
-   (predicates are structural); T5 gains one hypothesis. Decide the exact
-   shape before M2.6/M3.6.
+6. **Safety entailment is a domain operation (resolved at F1).** The plan's
+   `CertDomain` sketch (§4.2) carries only `ble`, and safety cannot be a `ble`
+   call: `{x ≠ 0}` is not one interval, so `x ∈ [-5,-1]` is safe but has no
+   single interval target to be included in. `CertDomain` now carries
+   `entails : Abs → BExp → Bool` and
+
+   ```lean
+   entails_sound : entails a b = true → P s → gamma a s → evalB b s = some true
+   ```
+
+   The answer is "definitely true" only when every state represented by `a`
+   evaluates the predicate to `true` *and* the predicate's expressions are
+   defined; `none`/`some false` are both `false` from the checker's point of
+   view. The wire format is unaffected (predicates are structural). The interval
+   test is conservative — it handles constants, variables, `+`/`-` with finite
+   endpoint sums, comparisons, and `not`/`and`/`or`; `*`, `/`, array reads and
+   `len` are declined (return `false`). This is a precision limitation, not a
+   soundness one; see [`known-gaps.md`](known-gaps.md).
+7. **Array memory is in v1 (resolved at F5).** The state carries an optional
+   `mem` map (§5.1): absent array = `⊤`, present array = one interval covering
+   every in-bounds cell, unknown array number = malformed. The M4.2 decoder must
+   enforce the same interval rules as `vars` and reject `bot` states that carry
+   `vars`/`mem`. This closes the M2.7-format mismatch: the interval instance's
+   `mem` component is now expressible on the wire, so read/len precision is not
+   lost at the decoder boundary.
 
 ## 13. Worked example
 

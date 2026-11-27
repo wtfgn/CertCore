@@ -73,6 +73,54 @@ jobs:
       - name: Example smoke tests
         run: lake env lean lean/Tests/Examples.lean
 
+      # Interval value type (M2.1).
+      - name: Interval smoke tests
+        run: lake env lean lean/Tests/Interval.lean
+
+      # Interval membership (M2.2).
+      - name: Gamma smoke tests
+        run: lake env lean lean/Tests/Gamma.lean
+
+      # Interval inclusion (M2.3).
+      - name: Ble smoke tests
+        run: lake env lean lean/Tests/Ble.lean
+
+      # Inclusion soundness, T4a (M2.3).
+      - name: Ble-sound smoke tests
+        run: lake env lean lean/Tests/BleSound.lean
+
+      # Convex-hull join and T4b (M2.4).
+      - name: Join smoke tests
+        run: lake env lean lean/Tests/Join.lean
+
+      # Top element and top_sound (M2.5).
+      - name: Top smoke tests
+        run: lake env lean lean/Tests/Top.lean
+
+      # Arithmetic transfer and T4c (M2.6).
+      - name: Transfer smoke tests
+        run: lake env lean lean/Tests/Transfer.lean
+
+      # Array read/len and bounds (M2.7).
+      - name: Array smoke tests
+        run: lake env lean lean/Tests/Arrays.lean
+
+      # Assembled interval CertDomain (M2.8).
+      - name: Instance smoke tests
+        run: lake env lean lean/Tests/Instance.lean
+
+      # Checker-interface fields: initOf/init_sound, entails/entails_sound, P_step (F1).
+      - name: Interface smoke tests
+        run: lake env lean lean/Tests/Interface.lean
+
+      # Showcase demos: guard refinement and singleton division (F3).
+      - name: Demo smoke tests
+        run: lake env lean lean/Tests/Demo.lean
+
+      # Ten hand-computed interval cases (M2.9).
+      - name: Interval unit cases
+        run: lake env lean lean/Tests/IntervalUnit.lean
+
       # Roadmap §2 rule 5: main never carries an undocumented unproved goal.
       # Word-boundary match so `sorryAx` in prose does not trip it.
       - name: Reject 'sorry' in the trusted tree
@@ -83,10 +131,15 @@ jobs:
           fi
           echo "No unproved goals in lean/."
 
-      # M1 audit: prints the footprint of T1/T2, compile_wf, and step_edge.
-      # Every line should be [propext, Quot.sound] or smaller. M3.8 adds
-      # `#print axioms check_sound`; M11.4 turns this into a comparison gate.
-      - name: Axiom audit (M1 footprint)
-        run: lake env lean lean/CertCore/Audit.lean
+      # M1/M2/F1 audit: every trusted theorem must be [propext, Quot.sound] or
+      # smaller. Classical.choice and sorryAx are failures, not warnings.
+      - name: Axiom audit (M1/M2/F1 footprint)
+        run: |
+          out=$(lake env lean lean/CertCore/Audit.lean)
+          echo "$out"
+          if echo "$out" | grep -E 'Classical.choice|sorryAx'; then
+            echo "::error::unexpected axiom in the trusted tree"
+            exit 1
+          fi
 
   # haskell job: added in M5, once the stack/cabal decision is made.

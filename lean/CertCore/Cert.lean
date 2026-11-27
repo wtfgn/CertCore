@@ -4,7 +4,7 @@
 The Lean-side certificate type, its JSON encoding, and the **total** decoder
 (project plan §4.1, §10.3; wire format frozen in `docs/certificate-v1.md`).
 
-Status: **planned** (M4). The M1 tree has no certificate type or decoder yet.
+Status: **planned** (M4). The M2 tree has no certificate type or decoder yet.
 
 The decoder is part of the TCB and has an adversarial input model: malformed
 JSON must produce `Diagnostic.malformed`, never a crash, and must not be able
