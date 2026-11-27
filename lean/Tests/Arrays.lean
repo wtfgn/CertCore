@@ -1,17 +1,20 @@
-import CertCore.Domain.IntervalArrays
+import CertCore.Domain.IntervalInstance
 
 /-!
-# Array transfer smoke tests (M2.7)
+# Array transfer smoke tests (M2.7/F6)
 
 Run with:
 
     lake env lean lean/Tests/Arrays.lean
 
-Pins per-array interval reads, `len` from the declared lengths, the `idxWithin`
-bounds predicate and its soundness, and T4c for read/len.
+The final array evaluator is `evalExprAbsOn` with `GammaOn` (the M2.7
+`AbsSound` evaluator was removed at F6). This file pins per-array interval
+reads, `len` from the declared lengths, the `idxWithin` bounds predicate and its
+soundness, and T4c for read/len.
 -/
 
 open CertCore
+open CertCore.Interval
 
 def c (n : Int) : I32 := I32.ofIntWrap n
 
@@ -41,11 +44,11 @@ def abs : Interval.Abs :=
 
 /-! ## Read and len -/
 
-#guard Interval.evalExprAbs lengths2 abs (.read 0 (.const (c 0))) = between 10 20
-#guard Interval.evalExprAbs lengths2 abs (.len 0) = Interval.toInterval (c 2)
+#guard evalExprAbsOn lengths2 [] [0] abs (.read 0 (.const (c 0))) = between 10 20
+#guard evalExprAbsOn lengths2 [] [0] abs (.len 0) = Interval.toInterval (c 2)
 
 -- A declared length that does not fit in I32 collapses `len` to top.
-#guard Interval.evalExprAbs (fun _ => 4294967296) abs (.len 0) = Interval.top
+#guard evalExprAbsOn (fun _ => 4294967296) [] [0] abs (.len 0) = Interval.top
 
 /-! ## `idxWithin` -/
 
@@ -76,32 +79,32 @@ theorem mem_10_20 (n : Int) (h1 : 10 ≤ n) (h2 : n ≤ 20) :
   simp only [Interval.lowerOk_some, Interval.upperOk_some]
   constructor <;> omega
 
-theorem absSound : Interval.AbsSound lengths2 abs st := by
+theorem gammaOn : GammaOn lengths2 [] [0] abs st := by
   refine ⟨?_, ?_, ?_⟩
-  · intro x
-    simp [abs, Interval.top_sound]
-  · intro a
-    by_cases ha : a = 0 <;> simp [st, lengths2, State.memAt, ha]
-  · intro a i hi
-    by_cases ha : a = 0
-    · subst a
-      have hi2 : i < 2 := by simpa [st, State.memAt] using hi
-      have hi01 : i = 0 ∨ i = 1 := by omega
-      rcases hi01 with rfl | rfl
-      · simpa [abs, st, State.memAt] using mem_10_20 10 (by omega) (by omega)
-      · simpa [abs, st, State.memAt] using mem_10_20 20 (by omega) (by omega)
-    · simp [st, State.memAt, ha] at hi
+  · intro x hx
+    simp at hx
+  · intro a ha
+    simp at ha
+    subst a
+    simp [st, lengths2, State.memAt]
+  · intro a ha i hi
+    simp at ha
+    subst a
+    have hi2 : i < 2 := by simpa [st, State.memAt] using hi
+    have hi01 : i = 0 ∨ i = 1 := by omega
+    rcases hi01 with rfl | rfl
+    · simpa [abs, st, State.memAt] using mem_10_20 10 (by omega) (by omega)
+    · simpa [abs, st, State.memAt] using mem_10_20 20 (by omega) (by omega)
 
 #guard eval (.read 0 (.const (c 0))) st = some (c 10)
 #guard eval (.len 0) st = some (c 2)
 
 example : Interval.gamma
-    (Interval.evalExprAbs lengths2 abs (.read 0 (.const (c 0)))) (c 10) := by
-  apply Interval.evalExprAbs_sound (lengths := lengths2) (abs := abs) (s := st)
-    (e := .read 0 (.const (c 0))) (v := c 10) absSound
+    (evalExprAbsOn lengths2 [] [0] abs (.read 0 (.const (c 0)))) (c 10) := by
+  apply evalExprAbsOn_sound (abs := abs) (s := st)
+    (e := .read 0 (.const (c 0))) (v := c 10) gammaOn
   decide
 
-example : Interval.gamma (Interval.evalExprAbs lengths2 abs (.len 0)) (c 2) := by
-  apply Interval.evalExprAbs_sound (lengths := lengths2) (abs := abs) (s := st)
-    (e := .len 0) (v := c 2) absSound
+example : Interval.gamma (evalExprAbsOn lengths2 [] [0] abs (.len 0)) (c 2) := by
+  apply evalExprAbsOn_sound (abs := abs) (s := st) (e := .len 0) (v := c 2) gammaOn
   decide

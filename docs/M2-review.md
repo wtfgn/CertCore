@@ -1428,3 +1428,36 @@ by `ble_complete` and the safety half limited by the conservative `entails`
 test files pass; `Audit.lean` lists 43 trusted lemmas and every one depends only
 on `[propext, Quot.sound]` or smaller; CI fails on `Classical.choice`/`sorryAx`.
 F3 is committed as `bf01dbb`; F4 is committed separately. F5–F8 remain.
+
+---
+
+## 15. Post-review fix — F5 (2026-11-27)
+
+v1's state encoding now has an optional `mem` map (`certificate-v1.md` §5.1).
+Keys are decimal array numbers; an absent array is `top`; a present array is one
+interval covering every in-bounds cell; an unknown array number or an inverted
+interval is malformed; `bot` carries no `vars`/`mem`. The array length comes from
+the program's declared table, not the certificate.
+
+This closes the M2.7/v1 mismatch: the interval instance's `mem` component is
+expressible on the wire, so read/len precision is not silently lost in the M4
+decoder. The M4.2 decoder must enforce the rules; no decoder exists yet, so this
+is a format decision plus tests for the decoder milestone. F6–F8 remain.
+
+---
+
+## 16. Post-review fix — F6 (2026-11-27)
+
+The three transfer towers are reduced to one. The final path is the
+support-restricted `evalExprAbsOn`/`assignAbsOn` with `GammaOn`; the unused
+`Env`/`evalExpr`/`assign`/`evalExpr_sound`/`assign_sound` layer (M2.6) and the
+`AbsSound`/`evalExprAbs`/`assignAbs`/`evalExprAbs_sound`/`assignAbs_sound` layer
+(M2.7) are removed. `IntervalTransfer` keeps the checked endpoint arithmetic and
+`add`/`sub` T4c; `IntervalArrays` keeps `Abs`, `lenInterval`, `idxWithin`, and
+`idxWithin_sound`. `Tests/Transfer.lean` and `Tests/Arrays.lean` now exercise
+the final `On` path, so the tests pin the code that ships rather than a staging
+layer. `Audit.lean` and the README/THEOREMS file lists were updated; the audit is
+still clean.
+
+This removes roughly 250 lines from the trusted tree and eliminates the risk of
+two transfer semantics drifting without a proof that they agree. F7–F8 remain.

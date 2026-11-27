@@ -112,7 +112,7 @@ State is one of:
 
 | Encoding | Meaning |
 |---|---|
-| `{"kind":"itv","vars":{…}}` | a partial map from variable names to intervals; an absent variable is unconstrained (`⊤`) |
+| `{"kind":"itv","vars":{…},"mem":{…}}` | a partial map from variable names to intervals, plus an optional map from array numbers to one interval covering every cell; an absent variable or array is unconstrained (`⊤`) |
 | `{"kind":"bot"}` | the empty set: the point (and label) is unreachable |
 
 - Each interval is `{"lo": L, "hi": H}`, where `L`, `H` are integers in
@@ -124,11 +124,24 @@ State is one of:
 - An empty interval is not an encoding of bottom: `L > H` is malformed, and
   unreachability is `bot`.
 - **`⊤` is encoded by omission.** An absent variable is unconstrained, so an
-  explicit unbounded interval (`{"lo":null,"hi":null}`) is malformed. Each
-  abstract state therefore has exactly one encoding, and a state with every
-  variable unconstrained is `{"kind":"itv","vars":{}}`.
+  explicit unbounded interval (`{"lo":null,"hi":null}`) is malformed. The same
+  rule applies to `mem`: an absent array has the unconstrained summary `⊤`.
+  Each abstract state therefore has exactly one encoding, and a state with every
+  variable and array unconstrained is `{"kind":"itv","vars":{}}`.
 - Variable names must be variables of the checked program; an unknown name ⇒
-  malformed. `bot` carries no `vars`.
+  malformed. `bot` carries no `vars` and no `mem`.
+- `mem` is optional. Its keys are decimal array numbers (the declaration order
+  from `docs/imp-syntax.md`); an unknown array number ⇒ malformed. The interval
+  is a summary: every in-bounds cell of that array must lie in it. The array's
+  length is the program's declared length, not a certificate field. This is what
+  makes the M2.7 read/len transfer reachable end-to-end: absent array = `⊤`,
+  present array = the analyzer's summary.
+
+An example with an array summary (array 0's cells all in `[10,20]`):
+
+```json
+{"kind":"itv","vars":{"x":{"lo":0,"hi":0}},"mem":{"0":{"lo":10,"hi":20}}}
+```
 
 ### 5.2 Reserved kinds (not in v1)
 
@@ -273,6 +286,13 @@ is cheap now and expensive after M4.2: say so before M3.1.
    endpoint sums, comparisons, and `not`/`and`/`or`; `*`, `/`, array reads and
    `len` are declined (return `false`). This is a precision limitation, not a
    soundness one; see [`known-gaps.md`](known-gaps.md).
+7. **Array memory is in v1 (resolved at F5).** The state carries an optional
+   `mem` map (§5.1): absent array = `⊤`, present array = one interval covering
+   every in-bounds cell, unknown array number = malformed. The M4.2 decoder must
+   enforce the same interval rules as `vars` and reject `bot` states that carry
+   `vars`/`mem`. This closes the M2.7-format mismatch: the interval instance's
+   `mem` component is now expressible on the wire, so read/len precision is not
+   lost at the decoder boundary.
 
 ## 13. Worked example
 

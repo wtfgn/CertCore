@@ -45,8 +45,11 @@ example : Interval.gamma Interval.top (c 42) := Interval.top_sound (c 42)
 #guard Interval.sub (between 1 2) (between 3 4) = between (-3) (-1)
 
 /-! 7. `max + 1` overflows and collapses to `top`. -/
-def maxEnv : Interval.Env := fun _ => Interval.toInterval I32.max
-#guard Interval.evalExpr maxEnv (.add (.var "x") (.const I32.one)) = Interval.top
+def maxAbs : Interval.Abs :=
+  { vars := fun _ => Interval.toInterval I32.max,
+    mem := fun _ => Interval.top }
+#guard Interval.evalExprAbsOn (fun _ => 0) ["x"] [] maxAbs
+  (.add (.var "x") (.const I32.one)) = Interval.top
 
 /-! 7b. Singleton division `10 / [1,1] = [10,10]`; a non-singleton divisor stays
 `top` (the conservative case). -/
@@ -59,10 +62,11 @@ def lengths : Arr → Nat := fun a => if a = 0 then 2 else 0
 def abs : Interval.Abs :=
   { vars := fun _ => Interval.top,
     mem := fun a => if a = 0 then between 10 20 else Interval.top }
-#guard Interval.evalExprAbs lengths abs (.read 0 (.const (c 0))) = between 10 20
+#guard Interval.evalExprAbsOn lengths [] [0] abs
+  (.read 0 (.const (c 0))) = between 10 20
 
 /-! 9. `len` of an array of length 2 is `[2,2]`. -/
-#guard Interval.evalExprAbs lengths abs (.len 0) = Interval.toInterval (c 2)
+#guard Interval.evalExprAbsOn lengths [] [0] abs (.len 0) = Interval.toInterval (c 2)
 
 /-! 10. Bounds: `[0,1]` is inside length 2, `[0,2]` is not. -/
 #guard Interval.idxWithin (between 0 1) 2

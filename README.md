@@ -41,9 +41,9 @@ $ lake env lean lean/CertCore/Audit.lean    # M1 axiom audit; every line [propex
 | `lean/CertCore/Semantics.lean` | syntax, state, `eval`, `compile`, `step`, `run`/`Safe`, `edges`, `CFG.WF`/`compile_wf`, `step_edge`, `Program.WF`/`compileChecked` (M1.2–M1.8), T1/T2 proved (M1.9–M1.10) | **yes** |
 | `lean/CertCore/Domain.lean` | `CertDomain` interface, combinators | **yes** (M2, M6) |
 | `lean/CertCore/Domain/Interval.lean` | interval value type, membership, inclusion/T4a, join/T4b and top (M2.1–M2.5) | **yes** |
-| `lean/CertCore/Domain/IntervalTransfer.lean` | arithmetic transfer `evalExpr`/`assign` and T4c (M2.6) | **yes** |
-| `lean/CertCore/Domain/IntervalArrays.lean` | per-array interval memory, read/len, `idxWithin` and array T4c (M2.7) | **yes** |
-| `lean/CertCore/Domain/IntervalInstance.lean` | assembled `CertDomain` instance: `ble`/`top`/`join`/`transfer` (M2.8) | **yes** |
+| `lean/CertCore/Domain/IntervalTransfer.lean` | checked endpoint arithmetic (`add`/`sub`), T4c (M2.6) | **yes** |
+| `lean/CertCore/Domain/IntervalArrays.lean` | abstract array state, `lenInterval`, `idxWithin` and its soundness (M2.7) | **yes** |
+| `lean/CertCore/Domain/IntervalInstance.lean` | assembled `CertDomain` instance: support-restricted `evalExprAbsOn`/`assignAbsOn`, `ble`/`top`/`join`/`transfer`, `entails`, `initOf`, `P_step` (M2.8/F1/F3/F6) | **yes** |
 | `lean/CertCore/Cert.lean` | certificate type, total JSON decoder | **yes** (M4) |
 | `lean/CertCore/Check.lean` | three obligation families, typed diagnostic | **yes** (M3) |
 | `lean/CertCore/Proofs.lean` | theorem inventory T1–T10 | **yes** |

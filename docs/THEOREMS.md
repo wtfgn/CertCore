@@ -49,10 +49,10 @@ Status values: `todo` · `in-progress` · `proved` · `post-month`.
   (`∀ n, ∃ c, run n = some c`). The induction escape hatch is the definition
   itself: later proofs induct on the step count, never on a coinductive tree.
 - **T4 is proved for intervals.** `ble_sound` (M2.3), `join_sound` (M2.4),
-  `top_sound` (M2.5), `evalExpr_sound`/`assign_sound` (M2.6), the array/instance
-  fields (M2.7–M2.8), and `entails_sound` (F1) are all in
-  `Domain/Interval*.lean`. T4's status is `proved` for the interval instance;
-  other domains are M6/M7.
+  `top_sound` (M2.5), `evalExprAbsOn_sound`/`assignAbsOn_sound` (M2.6/F6; the
+  M2.6 `Env` evaluator was removed at F6), the array/instance fields
+  (M2.7–M2.8), and `entails_sound` (F1) are all in `Domain/Interval*.lean`.
+  T4's status is `proved` for the interval instance; other domains are M6/M7.
 - **The checker interface gained three fields at F1.** `CertDomain` now carries
   `initOf`/`init_sound` (the base case), `entails`/`entails_sound` (the safety
   obligations), and `P_step` (the induction invariant). The interval instance

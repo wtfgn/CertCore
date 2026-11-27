@@ -2,27 +2,26 @@ import CertCore.Semantics
 import CertCore.Domain.Interval
 
 /-!
-# `CertCore.Domain.IntervalTransfer` — arithmetic transfer (M2.6)
+# `CertCore.Domain.IntervalTransfer` — arithmetic core (M2.6)
 
-The interval abstract state is `Env := Var → Interval`. Expression transfer is
-`evalExpr : Env → Expr → Interval`; assignment updates one variable.
+This module is the checked endpoint arithmetic: `add`/`sub` over interval bounds
+and their T4c lemmas (`add_sound`/`sub_sound`). The expression and assignment
+transfer (`evalExprAbsOn`/`assignAbsOn`) lives in `IntervalInstance` and reuses
+these; the M2.6 `Env` evaluator was removed at F6 so there is one trusted
+transfer on the path.
 
 **Overflow policy (decided at M2.6):** if computing a finite endpoint leaves the
 signed 32-bit range, the result collapses to `top`. The checker's safety
 obligations separately rule out overflow on accepted executions. This keeps the
 T4c proof simple and is a documented precision limitation.
 
-Addition and subtraction are exact over the abstract bounds. Multiplication and
-division currently collapse to `top`; refining them is a later precision
-improvement, not a soundness requirement. Array reads and `len` are also `top`
-until M2.7.
+Addition and subtraction are exact over the abstract bounds. Multiplication is
+`top`; division is precise on singleton operands (`Interval.div`) and `top`
+otherwise. Array read/len live in `IntervalArrays`/`IntervalInstance`.
 -/
 
 namespace CertCore
 namespace Interval
-
-/-- The interval abstract state: one interval per source variable. -/
-abbrev Env := Var → Interval
 
 /-! ## Checked endpoint arithmetic -/
 
@@ -271,69 +270,10 @@ theorem sub_sound {a b : Interval} {v1 v2 v : I32}
                   have hu : upperOk hi v := subUpper?_sound h1.2 h2.1 hv hU
                   simpa [sub, hL, hU] using gamma_ofBounds_of_lower_upper hl hu
 
-/-- Expression transfer. Multiplication, division, array read and `len` are
-currently `top` (see the module note); the other arithmetic is precise. -/
-def evalExpr (env : Env) : Expr → Interval
-  | .const n => toInterval n
-  | .var x => env x
-  | .add l r => add (evalExpr env l) (evalExpr env r)
-  | .sub l r => sub (evalExpr env l) (evalExpr env r)
-  | .mul _ _ => top
-  | .div l r => div (evalExpr env l) (evalExpr env r)
-  | .read _ _ => top
-  | .len _ => top
-
-/-- Assignment updates the abstract environment at one variable. -/
-def assign (env : Env) (x : Var) (e : Expr) : Env :=
-  funUpdate env x (evalExpr env e)
-
-/-- **T4c (expressions):** `evalExpr` is sound for successful evaluation. -/
-theorem evalExpr_sound {env : Env} {s : State} {e : Expr} {v : I32}
-    (hstate : ∀ x, gamma (env x) (s.get x)) (h : eval e s = some v) :
-    gamma (evalExpr env e) v := by
-  induction e generalizing v with
-  | const n =>
-      simp only [eval] at h
-      cases h
-      simp [evalExpr]
-  | var x =>
-      simp only [eval] at h
-      cases h
-      simpa [evalExpr] using hstate x
-  | add l r ihl ihr =>
-      simp only [eval] at h
-      rcases Option.bind_eq_some_iff.mp h with ⟨v1, h1, h2⟩
-      rcases Option.bind_eq_some_iff.mp h2 with ⟨v2, h2l, h2r⟩
-      exact add_sound (ihl h1) (ihr h2l) h2r
-  | sub l r ihl ihr =>
-      simp only [eval] at h
-      rcases Option.bind_eq_some_iff.mp h with ⟨v1, h1, h2⟩
-      rcases Option.bind_eq_some_iff.mp h2 with ⟨v2, h2l, h2r⟩
-      exact sub_sound (ihl h1) (ihr h2l) h2r
-  | mul l r ihl ihr =>
-      simp [evalExpr]
-  | div l r ihl ihr =>
-      simp only [eval] at h
-      rcases Option.bind_eq_some_iff.mp h with ⟨v1, h1, h2⟩
-      rcases Option.bind_eq_some_iff.mp h2 with ⟨v2, h2l, h2r⟩
-      exact div_sound (ihl h1) (ihr h2l) h2r
-  | read a i ihi =>
-      simp [evalExpr]
-  | len a =>
-      simp [evalExpr]
-
-/-- **T4c (assignment):** assigning the transferred expression keeps the
-abstract state sound. -/
-theorem assign_sound {env : Env} {s : State} {x : Var} {e : Expr} {v : I32}
-    (hstate : ∀ y, gamma (env y) (s.get y))
-    (h : eval e s = some v) :
-    ∀ y, gamma (assign env x e y) ((s.set x v).get y) := by
-  intro y
-  by_cases hy : y = x
-  · subst y
-    have he := evalExpr_sound hstate h
-    simpa [assign, State.set, State.get, funUpdate] using he
-  · simpa [assign, State.set, State.get, funUpdate, hy] using hstate y
+/-! The expression/assignment transfer lives in `IntervalInstance`
+(`evalExprAbsOn`/`assignAbsOn`), which is the only transfer on the final path.
+This module keeps the checked endpoint arithmetic and its T4c lemmas
+(`add_sound`/`sub_sound`), which that transfer reuses. -/
 
 end Interval
 end CertCore

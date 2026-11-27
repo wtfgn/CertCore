@@ -38,16 +38,12 @@ namespace CertCore
 #print axioms Interval.exists_gamma
 #print axioms Interval.join_sound
 #print axioms Interval.top_sound
-#print axioms Interval.evalExpr_sound
-#print axioms Interval.assign_sound
-#print axioms Interval.evalExprAbs_sound
+#print axioms Interval.add_sound
+#print axioms Interval.sub_sound
 #print axioms Interval.idxWithin_sound
 #print axioms Interval.meet_sound
 #print axioms Interval.singleton?_sound
 #print axioms Interval.div_sound
-
-/-! ## M2.8: the assembled domain's soundness fields -/
-
 #print axioms Interval.evalExprAbsOn_sound
 #print axioms Interval.assignAbsOn_sound
 #print axioms Interval.storeAbsOn_sound
