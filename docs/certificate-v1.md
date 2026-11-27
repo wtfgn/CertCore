@@ -177,6 +177,12 @@ must then hold for **all** states, so omitting states forfeits precision, never
 soundness. An analyzer that omits a reachable state will normally see its safety
 obligation fail, not pass.
 
+The explicit `{"kind":"bot"}` state is a coverage marker: the checker represents a
+point's state as `Option Abs` (`none` = bot) and skips that point's obligations.
+It is not a `CertDomain` element (see the note at the end of `Domain.lean`):
+with a support-restricted `gamma`, an all-`bot` abstract state is not
+distinguishable from a non-empty one when the support is empty.
+
 ## 8. What the checker verifies
 
 The obligations are derived from the program, never from the certificate. The
@@ -249,15 +255,24 @@ is cheap now and expensive after M4.2: say so before M3.1.
    version bump.
 5. **CLI contract** (M4.5): `certcore check prog.imp cert.json` exits `0` on
    accept, `1` on reject with a diagnostic, `2` on malformed input.
-6. **Safety entailment is a domain operation.** The plan's `CertDomain` sketch
-   (§4.2) carries only `ble`, and safety cannot be a `ble` call: `{x ≠ 0}` is
-   not one interval, so `x ∈ [-5,-1]` is safe but has no single interval target
-   to be included in. M2/M3 must add a sound, executable **entailment test**
-   `entails : Abs → BExp → Bool` — a three-valued abstract evaluation with the
-   answer "definitely true" only when every represented state satisfies the
-   predicate — plus its own soundness field. The wire format is unaffected
-   (predicates are structural); T5 gains one hypothesis. Decide the exact
-   shape before M2.6/M3.6.
+6. **Safety entailment is a domain operation (resolved at F1).** The plan's
+   `CertDomain` sketch (§4.2) carries only `ble`, and safety cannot be a `ble`
+   call: `{x ≠ 0}` is not one interval, so `x ∈ [-5,-1]` is safe but has no
+   single interval target to be included in. `CertDomain` now carries
+   `entails : Abs → BExp → Bool` and
+
+   ```lean
+   entails_sound : entails a b = true → P s → gamma a s → evalB b s = some true
+   ```
+
+   The answer is "definitely true" only when every state represented by `a`
+   evaluates the predicate to `true` *and* the predicate's expressions are
+   defined; `none`/`some false` are both `false` from the checker's point of
+   view. The wire format is unaffected (predicates are structural). The interval
+   test is conservative — it handles constants, variables, `+`/`-` with finite
+   endpoint sums, comparisons, and `not`/`and`/`or`; `*`, `/`, array reads and
+   `len` are declined (return `false`). This is a precision limitation, not a
+   soundness one; see [`known-gaps.md`](known-gaps.md).
 
 ## 13. Worked example
 

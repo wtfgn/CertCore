@@ -55,7 +55,7 @@ instance : Inhabited Interval := ⟨bot⟩
 
 /-- The singleton interval `[n, n]`. Used for source constants. -/
 def toInterval (n : I32) : Interval :=
-  .itv (some n) (some n) (by simp [loLeHi])
+  .itv (some n) (some n) (by exact Int.le_refl n.val)
 
 /-- Checked constructor: `none` exactly when both bounds are finite and inverted.
 
@@ -149,14 +149,21 @@ def gamma (i : Interval) (v : I32) : Prop :=
     gamma (.itv lo hi valid) v ↔ lowerOk lo v ∧ upperOk hi v := Iff.rfl
 
 @[simp] theorem gamma_toInterval (n : I32) : gamma (toInterval n) n := by
-  simp [gamma, toInterval, lowerOk, upperOk]
+  constructor
+  · intro a h
+    cases h
+    exact Int.le_refl n.val
+  · intro a h
+    cases h
+    exact Int.le_refl n.val
 
 /-- A singleton interval contains exactly its point. -/
 theorem gamma_toInterval_iff {n v : I32} : gamma (toInterval n) v ↔ v = n := by
   constructor
   · intro h
     have h' : lowerOk (some n) v ∧ upperOk (some n) v := by
-      simpa [gamma, toInterval] using h
+      change lowerOk (some n) v ∧ upperOk (some n) v at h
+      exact h
     have h1 : n.val ≤ v.val := (lowerOk_some n v).1 h'.1
     have h2 : v.val ≤ n.val := (upperOk_some n v).1 h'.2
     exact I32.ext (by omega)
@@ -299,41 +306,65 @@ theorem loLeHi_min_max {lo1 hi1 lo2 hi2 : Option I32}
 theorem leLo_minLo_left (lo1 lo2 : Option I32) :
     leLo (minLo lo1 lo2) lo1 = true := by
   cases lo1 with
-  | none => simp [minLo, leLo]
+  | none => cases lo2 <;> rfl
   | some a =>
       cases lo2 with
-      | none => simp [minLo, leLo]
-      | some b => by_cases h : a.val ≤ b.val <;> simp [minLo, leLo, h] <;> omega
+      | none => rfl
+      | some b =>
+          dsimp only [minLo]
+          split
+          · simp only [leLo, decide_eq_true_eq]
+            omega
+          · simp only [leLo, decide_eq_true_eq]
+            omega
 
 /-- `minLo` is below its right argument. -/
 theorem leLo_minLo_right (lo1 lo2 : Option I32) :
     leLo (minLo lo1 lo2) lo2 = true := by
   cases lo1 with
-  | none => cases lo2 <;> simp [minLo, leLo]
+  | none => cases lo2 <;> rfl
   | some a =>
       cases lo2 with
-      | none => simp [minLo, leLo]
-      | some b => by_cases h : a.val ≤ b.val <;> simp [minLo, leLo, h] <;> omega
+      | none => rfl
+      | some b =>
+          dsimp only [minLo]
+          split
+          · simp only [leLo, decide_eq_true_eq]
+            omega
+          · simp only [leLo, decide_eq_true_eq]
+            omega
 
 /-- `maxHi` is above its left argument. -/
 theorem leHi_maxHi_left (hi1 hi2 : Option I32) :
     leHi hi1 (maxHi hi1 hi2) = true := by
   cases hi1 with
-  | none => cases hi2 <;> simp [maxHi, leHi]
+  | none => cases hi2 <;> rfl
   | some a =>
       cases hi2 with
-      | none => simp [maxHi, leHi]
-      | some b => by_cases h : a.val ≤ b.val <;> simp [maxHi, leHi, h] <;> omega
+      | none => rfl
+      | some b =>
+          dsimp only [maxHi]
+          split
+          · simp only [leHi, decide_eq_true_eq]
+            omega
+          · simp only [leHi, decide_eq_true_eq]
+            omega
 
 /-- `maxHi` is above its right argument. -/
 theorem leHi_maxHi_right (hi1 hi2 : Option I32) :
     leHi hi2 (maxHi hi1 hi2) = true := by
   cases hi1 with
-  | none => cases hi2 <;> simp [maxHi, leHi]
+  | none => cases hi2 <;> rfl
   | some a =>
       cases hi2 with
-      | none => simp [maxHi, leHi]
-      | some b => by_cases h : a.val ≤ b.val <;> simp [maxHi, leHi, h] <;> omega
+      | none => rfl
+      | some b =>
+          dsimp only [maxHi]
+          split
+          · simp only [leHi, decide_eq_true_eq]
+            omega
+          · simp only [leHi, decide_eq_true_eq]
+            omega
 
 /-- Convex-hull join. `bot` is the identity. -/
 def join : Interval → Interval → Interval

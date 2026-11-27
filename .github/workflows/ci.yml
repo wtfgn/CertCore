@@ -109,6 +109,10 @@ jobs:
       - name: Instance smoke tests
         run: lake env lean lean/Tests/Instance.lean
 
+      # Checker-interface fields: initOf/init_sound, entails/entails_sound, P_step (F1).
+      - name: Interface smoke tests
+        run: lake env lean lean/Tests/Interface.lean
+
       # Ten hand-computed interval cases (M2.9).
       - name: Interval unit cases
         run: lake env lean lean/Tests/IntervalUnit.lean
@@ -123,10 +127,15 @@ jobs:
           fi
           echo "No unproved goals in lean/."
 
-      # M1 audit: prints the footprint of T1/T2, compile_wf, and step_edge.
-      # Every line should be [propext, Quot.sound] or smaller. M3.8 adds
-      # `#print axioms check_sound`; M11.4 turns this into a comparison gate.
-      - name: Axiom audit (M1 footprint)
-        run: lake env lean lean/CertCore/Audit.lean
+      # M1/M2/F1 audit: every trusted theorem must be [propext, Quot.sound] or
+      # smaller. Classical.choice and sorryAx are failures, not warnings.
+      - name: Axiom audit (M1/M2/F1 footprint)
+        run: |
+          out=$(lake env lean lean/CertCore/Audit.lean)
+          echo "$out"
+          if echo "$out" | grep -E 'Classical.choice|sorryAx'; then
+            echo "::error::unexpected axiom in the trusted tree"
+            exit 1
+          fi
 
   # haskell job: added in M5, once the stack/cabal decision is made.

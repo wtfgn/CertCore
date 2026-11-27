@@ -9,7 +9,7 @@ owns it, and whether it is a *deferral* (planned) or a *limitation* (won't fix).
 
 | # | Gap | Blocks | Owner | Kind | Resolution |
 |---|---|---|---|---|---|
-| — | *(none — the M1 trusted tree has no `sorry` and no deferred proof)* | — | — | — | — |
+| — | *(no `sorry`; the F1 interface fields are proved for intervals; the audit is clean after F2)* | — | — | — | Every listed trusted lemma depends on `[propext, Quot.sound]` or smaller; CI fails on `Classical.choice`/`sorryAx`. |
 
 ## Standing limitations (not gaps)
 
@@ -30,6 +30,11 @@ fixed:
   (`x != 0 && 10 / x > 1`) is not expressible; use the statement-level idiom
   `if (x != 0) { y := 10 / x; }`. This is a language choice (unconditional
   safety obligations), not a missing proof.
+- **`entails` is conservative (F1).** The interval test certifies constants,
+  variables, `+`/`-` with finite endpoint sums, comparisons, and
+  `not`/`and`/`or`; `*`, `/`, array reads, and `len` return `false`. A safe
+  program whose assert or divisor needs one of those is rejected, not accepted.
+  Extending the test is precision work, not a soundness fix.
 - Inclusion is incomplete for octagons (when they exist): the checker may
   reject a valid invariant. See [`NONGOALS.md`](NONGOALS.md).
 - Certificates of unsafety are out of scope: the protocol proves safety

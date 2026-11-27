@@ -5,7 +5,7 @@ Precision is purchasable with certificate bytes, at a fixed trusted computing ba
 
 | | |
 |---|---|
-| Status | **M2 complete — interval domain.** M1 semantics core is merged; M2.1–M2.9 cover the interval value type, membership, inclusion (T4a), convex-hull join (T4b), top, arithmetic/array transfer (T4c), `idxWithin`, the assembled `CertDomain` instance and ten hand-computed unit cases. The checker/decoder (M3–M4) is next. |
+| Status | **M2 complete — interval domain.** M1 semantics core is merged; M2.1–M2.9 cover the interval value type, membership, inclusion (T4a), convex-hull join (T4b), top, arithmetic/array transfer (T4c), `idxWithin`, the assembled `CertDomain` instance and ten hand-computed unit cases. The checker-interface fields (`initOf`, `entails`, `P_step`) landed at F1. The checker/decoder (M3–M4) is next. |
 | Trusted core | Lean 4 (`lean/CertCore/`), no Mathlib |
 | Untrusted | Haskell analyzer (M5), Python experiment harness (M10) |
 | Interface | JSON certificates, `docs/certificate-v1.md` |
@@ -73,6 +73,7 @@ and the audit command above.
 - [`docs/NONGOALS.md`](docs/NONGOALS.md) — the scope fence
 - [`docs/known-gaps.md`](docs/known-gaps.md) — anything not proved, documented
 - [`docs/M1-review.md`](docs/M1-review.md) — interim M1 review, with post-review fixes
+- [`docs/M2-review.md`](docs/M2-review.md) — interim M2 review: the interval domain, its interface gaps, and the decisions behind it
 - [`docs/prior-art.md`](docs/prior-art.md) — what is borrowed, what is ours
 
 ## Reproducing the gates locally
@@ -97,6 +98,7 @@ $ lake env lean lean/Tests/Top.lean               # top-element checks
 $ lake env lean lean/Tests/Transfer.lean          # arithmetic-transfer checks
 $ lake env lean lean/Tests/Arrays.lean            # array read/len and bounds checks
 $ lake env lean lean/Tests/Instance.lean          # assembled CertDomain checks
+$ lake env lean lean/Tests/Interface.lean         # checker-interface fields (F1)
 $ lake env lean lean/Tests/IntervalUnit.lean      # ten hand-computed interval cases
 $ grep -rnE '\bsorry\b' lean --include='*.lean'  # must print nothing
 $ lake env lean lean/CertCore/Audit.lean         # prints M1 footprint; every line [propext, Quot.sound] or smaller

@@ -12,7 +12,7 @@ Status values: `todo` · `in-progress` · `proved` · `post-month`.
 | **T1** | `step_det : step cfg p s = some c₁ → step cfg p s = some c₂ → c₁ = c₂` (configurations, not just states) | Semantics sanity | Low | **proved** | M1.9 | `Semantics.lean` |
 | **T2** | `safe_iff : Safe cfg s ↔ ¬ ∃ n, run cfg n cfg.entry s = none` (no failing prefix exists), with `safe_iff_exists : Safe ↔ ∀ n, ∃ c, run … = some c` | Removes coinduction; every later proof is an ordinary induction on steps | Low | **proved** | M1.10 | `Semantics.lean` |
 | **T3** | `run_sound : s ∈ γ a → run n s = some s' → s' ∈ γ (transferStar n a)` | Lifts transfer soundness to traces | Medium | todo | M3 | `Proofs.lean` |
-| **T4** | Per domain: `ble_sound`, `join_sound`, `transfer_sound`, `top_sound`, and `entails_sound` for the safety-predicate test | Domain instances; intervals in-month | Medium | **in-progress** | M2 | `Domain/Interval.lean` |
+| **T4** | Per domain: `ble_sound`, `join_sound`, `transfer_sound`, `top_sound`, and `entails_sound` for the safety-predicate test | Domain instances; intervals proved | Medium | **proved** (intervals) | M2 + F1 | `Domain/Interval*.lean` |
 | **T5** | **`check_sound : check D p c = .ok → Program.safe p`**, where `Program.safe` requires `Program.WF` | **The kernel theorem** | **Medium** | todo | M3.7 | `Check.lean` |
 | **T6** | Product instance: `ble_sound`, `transfer_sound`, `join_sound` for `D₁ × D₂` | Combinator (a), genericity made executable | Low | todo | M6.2 | `Domain/Product.lean` |
 | **T7** | `reduce_sound : γ (ρ (a,b)) ⊆ γ a ∩ γ b` and `reduce_idem : ρ ∘ ρ = ρ` | Reduced product; **post-month** | **High** | post-month | M8 | `Domain/Reduce.lean` |
@@ -48,12 +48,20 @@ Status values: `todo` · `in-progress` · `proved` · `post-month`.
   (`¬ ∃ n, run n = none`), plus the finite-prefix form
   (`∀ n, ∃ c, run n = some c`). The induction escape hatch is the definition
   itself: later proofs induct on the step count, never on a coinductive tree.
-- **T4 is landing in pieces during M2.** **T4a `ble_sound`** is proved at
-  M2.3; **T4b `join_sound`** is proved at M2.4; **`top_sound`** is proved at
-  M2.5; **T4c `evalExpr_sound`/`assign_sound`** is proved at M2.6; array
-  read/len and the `idxWithin` bounds obligation are M2.7; the assembled
-  `CertDomain` instance is M2.8 and its ten hand-computed cases are M2.9.
-  `entails_sound` follows with the checker at M3.
+- **T4 is proved for intervals.** `ble_sound` (M2.3), `join_sound` (M2.4),
+  `top_sound` (M2.5), `evalExpr_sound`/`assign_sound` (M2.6), the array/instance
+  fields (M2.7–M2.8), and `entails_sound` (F1) are all in
+  `Domain/Interval*.lean`. T4's status is `proved` for the interval instance;
+  other domains are M6/M7.
+- **The checker interface gained three fields at F1.** `CertDomain` now carries
+  `initOf`/`init_sound` (the base case), `entails`/`entails_sound` (the safety
+  obligations), and `P_step` (the induction invariant). The interval instance
+  proves them as `initOf_sound`, `entailsAbs_sound`, and `POn_step`. `entails`
+  is conservative: it handles constants, variables, `+`/`-` with finite endpoint
+  sums, comparisons, and `not`/`and`/`or`; `*`, `/`, array reads and `len`
+  return `false` (declined, not unsound). The `bot` certificate state is
+  represented by the checker as `Option Abs` (`none`), not as a `CertDomain`
+  field; see the note at the end of `Domain.lean`.
 - **Gamma is a predicate, not a `Set`.** Lean core (and this Mathlib-free
   tree) has no `Set` type, so the interval instance exposes
   `Interval.gamma : Interval → I32 → Prop`, and `gamma i v` is the plan's
@@ -64,9 +72,11 @@ Status values: `todo` · `in-progress` · `proved` · `post-month`.
   declared arrays within resource bounds, assigned reads) before returning `.ok`.
 - **T4 carries one operation the plan's sketch omits.** Safety cannot be a `ble`
   call (`{x ≠ 0}` is not one interval), so each domain supplies a sound
-  entailment test for safety predicates. Rationale and consequences are in
-  [`certificate-v1.md` §12.6](certificate-v1.md); settle the exact interface
-  before M2.6.
+  entailment test for safety predicates. This was settled at F1:
+  `entails : Abs → BExp → Bool` with
+  `entails_sound : entails a b = true → P s → gamma a s → evalB b s = some true`
+  (truth *and* definedness). The interval test's shape and its conservative
+  cases are in [`certificate-v1.md` §12.6](certificate-v1.md).
 - **`Program.compile_wf` is a TCB well-formedness lemma, not a numbered theorem.**
   It proves `CFG.WF (Program.compile p)`: the entry is inside the instruction
   array, and every instruction the machine can fetch sends control to a point
