@@ -51,7 +51,7 @@ def evalExprAbsOn (lengths : Arr → Nat) (vars : List Var) (arrays : List Arr)
   | .sub l r => sub (evalExprAbsOn lengths vars arrays abs l)
       (evalExprAbsOn lengths vars arrays abs r)
   | .mul _ _ => top
-  | .div _ _ => top
+  | .div l r => div (evalExprAbsOn lengths vars arrays abs l) (evalExprAbsOn lengths vars arrays abs r)
   | .read a _ => if arrMem a arrays then abs.mem a else top
   | .len a => if arrMem a arrays then lenInterval lengths a else top
 
@@ -110,7 +110,11 @@ theorem evalExprAbsOn_sound {lengths : Arr → Nat} {vars : List Var}
       rcases Option.bind_eq_some_iff.mp h2 with ⟨v2, h2l, h2r⟩
       exact sub_sound (ihl h1) (ihr h2l) h2r
   | mul l r ihl ihr => simp [evalExprAbsOn]
-  | div l r ihl ihr => simp [evalExprAbsOn]
+  | div l r ihl ihr =>
+      simp only [eval] at h
+      rcases Option.bind_eq_some_iff.mp h with ⟨v1, h1, h2⟩
+      rcases Option.bind_eq_some_iff.mp h2 with ⟨v2, h2l, h2r⟩
+      exact div_sound (ihl h1) (ihr h2l) h2r
   | read a i ihi =>
       simp only [eval] at h
       rcases Option.bind_eq_some_iff.mp h with ⟨idx, hidx, hrest⟩
@@ -246,6 +250,349 @@ theorem storeAbsOn_sound {lengths : Arr → Nat} {vars : List Var}
       rw [hmem] at hj ⊢
       simpa [storeAbsOn, hba] using hs.2.2 b hb j hj
 
+/-! ### Guard refinement (F3)
+
+The `assume` edge sharpens the variable in a single-variable comparison:
+`x < c` true becomes `meet i (-∞, c-1]`, `x ≥ c` false becomes the same, and so
+on. Conjunctions refine left-to-right; disjunctions and non-variable comparisons
+are left unchanged (sound, less precise). -/
+
+/-- `c - 1`, or `none` if that underflows. -/
+def predI32? (c : I32) : Option I32 := I32.sub? c I32.one
+
+/-- `c + 1`, or `none` if that overflows. -/
+def succI32? (c : I32) : Option I32 := I32.add? c I32.one
+
+def restrictHi (i : Interval) (c : I32) : Interval :=
+  meet i (ofBounds none (some c))
+
+def restrictLo (i : Interval) (c : I32) : Interval :=
+  meet i (ofBounds (some c) none)
+
+def restrictEq (i : Interval) (c : I32) : Interval :=
+  meet i (toInterval c)
+
+/-- `x < c` true: clamp above by `c - 1`; `bot` when `c` is `i32Min`. -/
+def restrictHiPred (i : Interval) (c : I32) : Interval :=
+  match predI32? c with
+  | some c' => restrictHi i c'
+  | none => .bot
+
+/-- `x > c` true: clamp below by `c + 1`; `bot` when `c` is `i32Max`. -/
+def restrictLoSucc (i : Interval) (c : I32) : Interval :=
+  match succI32? c with
+  | some c' => restrictLo i c'
+  | none => .bot
+
+/-- Refine a single interval by a comparison with a constant. -/
+def refineVar (i : Interval) (op : CmpOp) (c : I32) (positive : Bool) : Interval :=
+  match op, positive with
+  | .lt, true => restrictHiPred i c
+  | .lt, false => restrictLo i c
+  | .le, true => restrictHi i c
+  | .le, false => restrictLoSucc i c
+  | .gt, true => restrictLoSucc i c
+  | .gt, false => restrictHi i c
+  | .ge, true => restrictLo i c
+  | .ge, false => restrictHiPred i c
+  | .eq, true => restrictEq i c
+  | .eq, false => i
+  | .ne, true => i
+  | .ne, false => restrictEq i c
+
+/-- Swap the operands of a comparison. -/
+def swapCmp : CmpOp → CmpOp
+  | .eq => .eq
+  | .ne => .ne
+  | .lt => .gt
+  | .le => .ge
+  | .gt => .lt
+  | .ge => .le
+
+/-- Refine an abstract state by a condition and its polarity. -/
+def refineAbs (vars : List Var) (abs : Abs) (b : BExp) (positive : Bool) : Abs :=
+  match b with
+  | .cmp op (.var x) (.const c) =>
+      if varMem x vars then
+        { abs with vars := funUpdate abs.vars x (refineVar (abs.vars x) op c positive) }
+      else abs
+  | .cmp op (.const c) (.var x) =>
+      if varMem x vars then
+        { abs with vars := funUpdate abs.vars x (refineVar (abs.vars x) (swapCmp op) c positive) }
+      else abs
+  | .and l r =>
+      if positive then refineAbs vars (refineAbs vars abs l true) r true else abs
+  | .not b => refineAbs vars abs b (!positive)
+  | _ => abs
+
+theorem restrictHi_sound {i : Interval} {c v : I32}
+    (hi : gamma i v) (hv : v.val ≤ c.val) : gamma (restrictHi i c) v := by
+  apply meet_sound hi
+  apply gamma_ofBounds_of_lower_upper
+  · exact lowerOk_none v
+  · exact (upperOk_some c v).2 hv
+
+theorem restrictLo_sound {i : Interval} {c v : I32}
+    (hi : gamma i v) (hv : c.val ≤ v.val) : gamma (restrictLo i c) v := by
+  apply meet_sound hi
+  apply gamma_ofBounds_of_lower_upper
+  · exact (lowerOk_some c v).2 hv
+  · exact upperOk_none v
+
+theorem restrictEq_sound {i : Interval} {c v : I32}
+    (hi : gamma i v) (hv : v = c) : gamma (restrictEq i c) v := by
+  subst v
+  exact meet_sound hi (gamma_toInterval c)
+
+theorem restrictHiPred_sound {i : Interval} {c v : I32}
+    (hi : gamma i v) (hv : v.val < c.val) : gamma (restrictHiPred i c) v := by
+  unfold restrictHiPred
+  cases h : predI32? c
+  · exfalso
+    unfold predI32? at h
+    have hnone := I32.sub?_none_iff.mp h
+    have hcmin' : i32Min ≤ c.val := c.min_le
+    have hcmax' : c.val ≤ i32Max := c.le_max
+    have hcmin : c.val = i32Min := by
+      have hlt : c.val - 1 < i32Min := by
+        by_cases hge : i32Min ≤ c.val - 1
+        · have hle : c.val - 1 ≤ i32Max := by omega
+          exact absurd ⟨hge, hle⟩ hnone
+        · omega
+      omega
+    have hvmin : i32Min ≤ v.val := v.min_le
+    omega
+  · rename_i c'
+    have hc' : c'.val = c.val - 1 := by
+      exact I32.sub?_sound (by simpa [predI32?] using h)
+    apply restrictHi_sound hi
+    omega
+
+theorem restrictLoSucc_sound {i : Interval} {c v : I32}
+    (hi : gamma i v) (hv : c.val < v.val) : gamma (restrictLoSucc i c) v := by
+  unfold restrictLoSucc
+  cases h : succI32? c
+  · exfalso
+    unfold succI32? at h
+    have hnone := I32.add?_none_iff.mp h
+    have hcmin' : i32Min ≤ c.val := c.min_le
+    have hcmax' : c.val ≤ i32Max := c.le_max
+    have hcmax : c.val = i32Max := by
+      have hgt : i32Max < c.val + 1 := by
+        by_cases hle : c.val + 1 ≤ i32Max
+        · have hge : i32Min ≤ c.val + 1 := by omega
+          exact absurd ⟨hge, hle⟩ hnone
+        · omega
+      omega
+    have hvmax : v.val ≤ i32Max := v.le_max
+    omega
+  · rename_i c'
+    have hc' : c'.val = c.val + 1 := by
+      exact I32.add?_sound (by simpa [succI32?] using h)
+    apply restrictLo_sound hi
+    omega
+
+theorem compare_swap (op : CmpOp) (a b : I32) :
+    compare (swapCmp op) a b = compare op b a := by
+  cases op with
+  | eq =>
+      by_cases hab : a.val = b.val
+      · have hba : b.val = a.val := hab.symm
+        simp [swapCmp, compare, decide_eq_true_eq.mpr hab, decide_eq_true_eq.mpr hba]
+      · have hba : ¬ b.val = a.val := fun h => hab h.symm
+        simp [swapCmp, compare, decide_eq_false_iff_not.mpr hab,
+          decide_eq_false_iff_not.mpr hba]
+  | ne =>
+      by_cases hab : a.val = b.val
+      · have hne : ¬ a.val ≠ b.val := fun h => h hab
+        have hne' : ¬ b.val ≠ a.val := fun h => h hab.symm
+        simp [swapCmp, compare, decide_eq_false_iff_not.mpr hne,
+          decide_eq_false_iff_not.mpr hne']
+      · have hne : a.val ≠ b.val := hab
+        have hne' : b.val ≠ a.val := fun h => hab h.symm
+        simp [swapCmp, compare, decide_eq_true_eq.mpr hne,
+          decide_eq_true_eq.mpr hne']
+  | lt => rfl
+  | le => rfl
+  | gt => rfl
+  | ge => rfl
+
+theorem refineVar_sound {i : Interval} {v c : I32} {op : CmpOp} {positive : Bool}
+    (hi : gamma i v) (hc : compare op v c = positive) :
+    gamma (refineVar i op c positive) v := by
+  cases op with
+  | eq =>
+      cases positive with
+      | true =>
+          have hv : v = c :=
+            I32.ext (of_decide_eq_true (show decide (v.val = c.val) = true from hc))
+          change gamma (restrictEq i c) v
+          exact restrictEq_sound hi hv
+      | false =>
+          change gamma i v
+          exact hi
+  | ne =>
+      cases positive with
+      | true =>
+          change gamma i v
+          exact hi
+      | false =>
+          have hv : v = c := by
+            have hne : ¬ v.val ≠ c.val :=
+              of_decide_eq_false (show decide (v.val ≠ c.val) = false from hc)
+            by_cases hvc : v.val = c.val
+            · exact I32.ext hvc
+            · exfalso
+              exact hne hvc
+          change gamma (restrictEq i c) v
+          exact restrictEq_sound hi hv
+  | lt =>
+      cases positive with
+      | true =>
+          have hv : v.val < c.val :=
+            of_decide_eq_true (show decide (v.val < c.val) = true from hc)
+          change gamma (restrictHiPred i c) v
+          exact restrictHiPred_sound hi hv
+      | false =>
+          have hv : ¬ v.val < c.val :=
+            of_decide_eq_false (show decide (v.val < c.val) = false from hc)
+          have hle : c.val ≤ v.val := by omega
+          change gamma (restrictLo i c) v
+          exact restrictLo_sound hi hle
+  | le =>
+      cases positive with
+      | true =>
+          have hv : v.val ≤ c.val :=
+            of_decide_eq_true (show decide (v.val ≤ c.val) = true from hc)
+          change gamma (restrictHi i c) v
+          exact restrictHi_sound hi hv
+      | false =>
+          have hv : ¬ v.val ≤ c.val :=
+            of_decide_eq_false (show decide (v.val ≤ c.val) = false from hc)
+          have hlt : c.val < v.val := by omega
+          change gamma (restrictLoSucc i c) v
+          exact restrictLoSucc_sound hi hlt
+  | gt =>
+      cases positive with
+      | true =>
+          have hv : c.val < v.val :=
+            of_decide_eq_true (show decide (c.val < v.val) = true from hc)
+          change gamma (restrictLoSucc i c) v
+          exact restrictLoSucc_sound hi hv
+      | false =>
+          have hv : ¬ c.val < v.val :=
+            of_decide_eq_false (show decide (c.val < v.val) = false from hc)
+          have hle : v.val ≤ c.val := by omega
+          change gamma (restrictHi i c) v
+          exact restrictHi_sound hi hle
+  | ge =>
+      cases positive with
+      | true =>
+          have hv : c.val ≤ v.val :=
+            of_decide_eq_true (show decide (c.val ≤ v.val) = true from hc)
+          change gamma (restrictLo i c) v
+          exact restrictLo_sound hi hv
+      | false =>
+          have hv : ¬ c.val ≤ v.val :=
+            of_decide_eq_false (show decide (c.val ≤ v.val) = false from hc)
+          have hlt : v.val < c.val := by omega
+          change gamma (restrictHiPred i c) v
+          exact restrictHiPred_sound hi hlt
+
+theorem refineAbs_sound {lengths : Arr → Nat} {vars : List Var} {arrays : List Arr}
+    {abs : Abs} {b : BExp} {positive : Bool} {s : State}
+    (hs : GammaOn lengths vars arrays abs s) (hb : evalB b s = some positive) :
+    GammaOn lengths vars arrays (refineAbs vars abs b positive) s := by
+  induction b generalizing abs positive with
+  | cmp op l r =>
+      cases l with
+      | var x =>
+          cases r with
+          | const c =>
+              cases hx : varMem x vars with
+              | false =>
+                  simp [refineAbs, hx]
+                  exact hs
+              | true =>
+                  simp only [refineAbs, hx, ite_true]
+                  refine ⟨?_, ?_, ?_⟩
+                  · intro y hy
+                    by_cases hyx : y = x
+                    · subst y
+                      have hcmp : compare op (s.get x) c = positive := by
+                        simpa [evalB, eval] using hb
+                      simpa [funUpdate] using
+                        refineVar_sound (hs.1 x (varMem_sound hx)) hcmp
+                    · simpa [funUpdate, hyx] using hs.1 y hy
+                  · intro a ha
+                    simpa using hs.2.1 a ha
+                  · intro a ha i hi
+                    simpa using hs.2.2 a ha i hi
+          | _ =>
+              simp [refineAbs]
+              exact hs
+      | const c =>
+          cases r with
+          | var x =>
+              cases hx : varMem x vars with
+              | false =>
+                  simp [refineAbs, hx]
+                  exact hs
+              | true =>
+                  simp only [refineAbs, hx, ite_true]
+                  refine ⟨?_, ?_, ?_⟩
+                  · intro y hy
+                    by_cases hyx : y = x
+                    · subst y
+                      have hcmp : compare op c (s.get x) = positive := by
+                        simpa [evalB, eval] using hb
+                      have hcmp' : compare (swapCmp op) (s.get x) c = positive := by
+                        rw [compare_swap]
+                        exact hcmp
+                      simpa [funUpdate] using
+                        refineVar_sound (hs.1 x (varMem_sound hx)) hcmp'
+                    · simpa [funUpdate, hyx] using hs.1 y hy
+                  · intro a ha
+                    simpa using hs.2.1 a ha
+                  · intro a ha i hi
+                    simpa using hs.2.2 a ha i hi
+          | _ =>
+              simp [refineAbs]
+              exact hs
+      | _ =>
+          simp [refineAbs]
+          exact hs
+  | and l r ihl ihr =>
+      cases positive with
+      | false =>
+          simp [refineAbs]
+          exact hs
+      | true =>
+          simp only [refineAbs]
+          have hb' : evalB l s = some true ∧ evalB r s = some true := by
+            simp only [evalB] at hb
+            rcases Option.bind_eq_some_iff.mp hb with ⟨a, ha, h2⟩
+            rcases Option.bind_eq_some_iff.mp h2 with ⟨b, hb2, hres⟩
+            injection hres with hab
+            have hab' : a = true ∧ b = true := by simpa using hab
+            rcases hab' with ⟨rfl, rfl⟩
+            exact ⟨ha, hb2⟩
+          rcases hb' with ⟨hl, hr⟩
+          simpa using ihr (ihl hs hl) hr
+  | not b ih =>
+      have hb' : evalB b s = some (!positive) := by
+        cases hbe : evalB b s with
+        | none => simp [evalB, hbe] at hb
+        | some x =>
+            simp only [evalB, hbe] at hb
+            injection hb with hx
+            have hx' : x = !positive := by simpa using congrArg Bool.not hx
+            simp [hx']
+      simpa [refineAbs] using ih hs hb'
+  | or l r ihl ihr =>
+      simp [refineAbs]
+      exact hs
+
 /-! ## Edge transfer and the `CertDomain` instance -/
 
 /-- Transfer a checker edge. Stores set the written array to `top`; guards and
@@ -256,7 +603,8 @@ def transferAbs (lengths : Arr → Nat) (vars : List Var) (arrays : List Arr) :
   | .atomic (.assign x e), abs => assignAbsOn lengths vars arrays abs x e
   | .atomic (.store a _ e), abs => storeAbsOn lengths vars arrays abs a e
   | .atomic (.assert _), abs => abs
-  | .assume _ _, abs => abs
+  | .assume b true, abs => refineAbs vars abs b true
+  | .assume b false, abs => refineAbs vars abs b false
 
 theorem transferAbs_sound {lengths : Arr → Nat} {vars : List Var}
     {arrays : List Arr} {c : EdgeCmd} {abs : Abs} {s s' : State}
@@ -296,13 +644,15 @@ theorem transferAbs_sound {lengths : Arr → Nat} {vars : List Var}
       cases p
       · simp only [EdgeCmd.exec] at h
         split at h
-        · cases h
-          simpa [transferAbs] using hg
+        · rename_i hb
+          cases h
+          simpa [transferAbs] using refineAbs_sound hg hb
         · simp at h
       · simp only [EdgeCmd.exec] at h
         split at h
-        · cases h
-          simpa [transferAbs] using hg
+        · rename_i hb
+          cases h
+          simpa [transferAbs] using refineAbs_sound hg hb
         · simp at h
 
 /-! ## Checker interface: initial state, entailment, and `P` preservation (F1)

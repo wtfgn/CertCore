@@ -93,6 +93,42 @@ theorem gamma_ofBounds_of_lower_upper {lo hi : Option I32} {v : I32}
           rw [ofBounds_of_le hab]
           simp [gamma, lowerOk_some, upperOk_some, ha, hb]
 
+/-- **T4 (meet):** the interval intersection contains exactly the common values.
+It lives here rather than in `Interval.lean` only because its proof needs
+`gamma_ofBounds_of_lower_upper`. -/
+theorem meet_sound {a b : Interval} {v : I32}
+    (h1 : gamma a v) (h2 : gamma b v) : gamma (meet a b) v := by
+  cases a with
+  | bot => simp [gamma] at h1
+  | itv lo1 hi1 w1 =>
+    cases b with
+    | bot => simp [gamma] at h2
+    | itv lo2 hi2 w2 =>
+      have h1' : lowerOk lo1 v ∧ upperOk hi1 v := by simpa [gamma] using h1
+      have h2' : lowerOk lo2 v ∧ upperOk hi2 v := by simpa [gamma] using h2
+      simp only [meet]
+      apply gamma_ofBounds_of_lower_upper
+      · cases lo1 with
+        | none => simpa [maxLo] using h2'.1
+        | some a1 =>
+          cases lo2 with
+          | none => simpa [maxLo] using h1'.1
+          | some a2 =>
+            dsimp only [maxLo]
+            split
+            · exact h2'.1
+            · exact h1'.1
+      · cases hi1 with
+        | none => simpa [minHi] using h2'.2
+        | some b1 =>
+          cases hi2 with
+          | none => simpa [minHi] using h1'.2
+          | some b2 =>
+            dsimp only [minHi]
+            split
+            · exact h1'.2
+            · exact h2'.2
+
 /-! ## Endpoint soundness -/
 
 theorem addLower?_sound {lo1 lo2 : Option I32} {v1 v2 v : I32}
@@ -243,7 +279,7 @@ def evalExpr (env : Env) : Expr → Interval
   | .add l r => add (evalExpr env l) (evalExpr env r)
   | .sub l r => sub (evalExpr env l) (evalExpr env r)
   | .mul _ _ => top
-  | .div _ _ => top
+  | .div l r => div (evalExpr env l) (evalExpr env r)
   | .read _ _ => top
   | .len _ => top
 
@@ -277,7 +313,10 @@ theorem evalExpr_sound {env : Env} {s : State} {e : Expr} {v : I32}
   | mul l r ihl ihr =>
       simp [evalExpr]
   | div l r ihl ihr =>
-      simp [evalExpr]
+      simp only [eval] at h
+      rcases Option.bind_eq_some_iff.mp h with ⟨v1, h1, h2⟩
+      rcases Option.bind_eq_some_iff.mp h2 with ⟨v2, h2l, h2r⟩
+      exact div_sound (ihl h1) (ihr h2l) h2r
   | read a i ihi =>
       simp [evalExpr]
   | len a =>

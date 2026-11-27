@@ -48,6 +48,12 @@ example : Interval.gamma Interval.top (c 42) := Interval.top_sound (c 42)
 def maxEnv : Interval.Env := fun _ => Interval.toInterval I32.max
 #guard Interval.evalExpr maxEnv (.add (.var "x") (.const I32.one)) = Interval.top
 
+/-! 7b. Singleton division `10 / [1,1] = [10,10]`; a non-singleton divisor stays
+`top` (the conservative case). -/
+#guard Interval.div (between 10 10) (between 1 1) = between 10 10
+#guard Interval.div (between 10 20) (between 1 1) = Interval.top
+#guard Interval.div (between 10 10) (between 0 1) = Interval.top
+
 /-! 8. An array read returns the array interval. -/
 def lengths : Arr → Nat := fun a => if a = 0 then 2 else 0
 def abs : Interval.Abs :=

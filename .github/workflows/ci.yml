@@ -113,6 +113,10 @@ jobs:
       - name: Interface smoke tests
         run: lake env lean lean/Tests/Interface.lean
 
+      # Showcase demos: guard refinement and singleton division (F3).
+      - name: Demo smoke tests
+        run: lake env lean lean/Tests/Demo.lean
+
       # Ten hand-computed interval cases (M2.9).
       - name: Interval unit cases
         run: lake env lean lean/Tests/IntervalUnit.lean

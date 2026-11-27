@@ -40,6 +40,9 @@ namespace CertCore
 #print axioms Interval.assign_sound
 #print axioms Interval.evalExprAbs_sound
 #print axioms Interval.idxWithin_sound
+#print axioms Interval.meet_sound
+#print axioms Interval.singleton?_sound
+#print axioms Interval.div_sound
 
 /-! ## M2.8: the assembled domain's soundness fields -/
 
@@ -49,6 +52,8 @@ namespace CertCore
 #print axioms Interval.bleAbs_sound
 #print axioms Interval.joinAbs_sound
 #print axioms Interval.transferAbs_sound
+#print axioms Interval.refineVar_sound
+#print axioms Interval.refineAbs_sound
 
 /-! ## F1: the checker interface -/
 

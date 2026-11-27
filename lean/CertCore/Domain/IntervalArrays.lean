@@ -79,7 +79,7 @@ def evalExprAbs (lengths : Arr → Nat) (abs : Abs) : Expr → Interval
   | .add l r => add (evalExprAbs lengths abs l) (evalExprAbs lengths abs r)
   | .sub l r => sub (evalExprAbs lengths abs l) (evalExprAbs lengths abs r)
   | .mul _ _ => top
-  | .div _ _ => top
+  | .div l r => div (evalExprAbs lengths abs l) (evalExprAbs lengths abs r)
   | .read a _ => abs.mem a
   | .len a => lenInterval lengths a
 
@@ -113,7 +113,10 @@ theorem evalExprAbs_sound {lengths : Arr → Nat} {abs : Abs} {s : State}
   | mul l r ihl ihr =>
       simp [evalExprAbs]
   | div l r ihl ihr =>
-      simp [evalExprAbs]
+      simp only [eval] at h
+      rcases Option.bind_eq_some_iff.mp h with ⟨v1, h1, h2⟩
+      rcases Option.bind_eq_some_iff.mp h2 with ⟨v2, h2l, h2r⟩
+      exact div_sound (ihl h1) (ihr h2l) h2r
   | read a i ihi =>
       simp only [eval] at h
       rcases Option.bind_eq_some_iff.mp h with ⟨idx, hidx, hrest⟩

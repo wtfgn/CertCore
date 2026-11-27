@@ -99,6 +99,7 @@ $ lake env lean lean/Tests/Transfer.lean          # arithmetic-transfer checks
 $ lake env lean lean/Tests/Arrays.lean            # array read/len and bounds checks
 $ lake env lean lean/Tests/Instance.lean          # assembled CertDomain checks
 $ lake env lean lean/Tests/Interface.lean         # checker-interface fields (F1)
+$ lake env lean lean/Tests/Demo.lean              # guard refinement + singleton division (F3)
 $ lake env lean lean/Tests/IntervalUnit.lean      # ten hand-computed interval cases
 $ grep -rnE '\bsorry\b' lean --include='*.lean'  # must print nothing
 $ lake env lean lean/CertCore/Audit.lean         # prints M1 footprint; every line [propext, Quot.sound] or smaller

@@ -407,6 +407,31 @@ theorem join_sound {a b : Interval} {v : I32}
               leHi_sound (leHi_maxHi_right hi1 hi2) v hv.2
             simpa [join, gamma] using And.intro hl hu
 
+/-! ## Meet (F3 guard refinement)
+
+`meet` is the intersection of two boxes. It is the operation the `assume` edge
+uses to sharpen a variable from a branch condition: `x < c` true becomes
+`meet i (-∞, c-1]`, and so on. The strict variants live with the refinement in
+`IntervalInstance`; the interval operation only needs the meet. -/
+
+/-- The stronger (higher) lower bound of a meet. -/
+def maxLo : Option I32 → Option I32 → Option I32
+  | none, y => y
+  | x, none => x
+  | some a, some b => if a.val ≤ b.val then some b else some a
+
+/-- The stronger (lower) upper bound of a meet. -/
+def minHi : Option I32 → Option I32 → Option I32
+  | none, y => y
+  | x, none => x
+  | some a, some b => if a.val ≤ b.val then some a else some b
+
+/-- Interval intersection. Inverted results normalise to `bot`. -/
+def meet : Interval → Interval → Interval
+  | .bot, _ => .bot
+  | _, .bot => .bot
+  | .itv lo1 hi1 _, .itv lo2 hi2 _ => ofBounds (maxLo lo1 lo2) (minHi hi1 hi2)
+
 /-! ## Top (M2.5) -/
 
 /-- The top element: no information, i.e. every value. -/
@@ -415,6 +440,78 @@ def top : Interval := .itv none none (by trivial)
 /-- **T4 (top):** every value is in `top`. -/
 @[simp] theorem top_sound (v : I32) : gamma top v := by
   simp [top, gamma, lowerOk, upperOk]
+
+/-! ## Division (F3)
+
+A conservative but useful division: precise when both operands are singletons
+and the concrete division succeeds; `top` otherwise. This is enough for the
+canonical `10 / [1,1]` example and keeps the transfer sound for every other
+case (a wider division rule is later precision work). -/
+
+/-- The singleton value of an interval, if it has one. -/
+def singleton? : Interval → Option I32
+  | .itv (some lo) (some hi) _ => if lo.val = hi.val then some lo else none
+  | _ => none
+
+/-- A singleton interval contains exactly its `singleton?` value. -/
+theorem singleton?_sound {a : Interval} {x : I32}
+    (h : singleton? a = some x) {v : I32} (hv : gamma a v) : v = x := by
+  cases a with
+  | bot => simp [gamma] at hv
+  | itv lo hi w =>
+    cases lo with
+    | none => simp [singleton?] at h
+    | some a1 =>
+      cases hi with
+      | none => simp [singleton?] at h
+      | some b1 =>
+        simp only [singleton?] at h
+        split at h
+        · rename_i heq
+          injection h with hx
+          subst x
+          have hg : lowerOk (some a1) v ∧ upperOk (some b1) v := by simpa [gamma] using hv
+          have h1 : a1.val ≤ v.val := (lowerOk_some a1 v).1 hg.1
+          have h2 : v.val ≤ b1.val := (upperOk_some b1 v).1 hg.2
+          exact I32.ext (by omega)
+        · simp at h
+
+/-- Interval division: precise on singleton operands when `I32.div?` succeeds,
+`top` otherwise. -/
+def div (a b : Interval) : Interval :=
+  match singleton? a, singleton? b with
+  | some x, some y =>
+      match I32.div? x y with
+      | some q => toInterval q
+      | none => top
+  | _, _ => top
+
+/-- **T4c (division):** the singleton division is sound for successful concrete
+division. -/
+theorem div_sound {a b : Interval} {v1 v2 v : I32}
+    (h1 : gamma a v1) (h2 : gamma b v2) (h : I32.div? v1 v2 = some v) :
+    gamma (div a b) v := by
+  unfold div
+  cases ha : singleton? a with
+  | none => simp
+  | some x =>
+    cases hb : singleton? b with
+    | none => simp
+    | some y =>
+      have hv1 : v1 = x := singleton?_sound ha h1
+      have hv2 : v2 = y := singleton?_sound hb h2
+      subst v1
+      subst v2
+      cases hd : I32.div? x y with
+      | none => simp [hd]
+      | some q =>
+        simp [hd]
+        have hq : v = q := by
+          rw [hd] at h
+          injection h with hqv
+          exact hqv.symm
+        subst v
+        exact gamma_toInterval q
 
 end Interval
 
