@@ -12,7 +12,7 @@
 | Merge state | 8 commits ahead of `main` (`7a2856f`, M2); not merged, not pushed |
 | Verdict | **The checker is sound and T5 is genuinely closed, but M3 was not cost-complete or v1-conformant at the reviewed commit.** The sparse-map representation made every lookup linear, `wellFormed` was quadratic and recompiled the program per state, and a certificate state at the halt point was accepted despite v1 §3.1. The first two are fixed in the uncommitted post-review worktree (see the note below); the label and `hP` contracts still need decisions. |
 
-> **Post-review fixes (uncommitted worktree, 2026-11-27).** M3-F1 and M3-F4
+> **Post-review fixes (committed in the following fix commit).** M3-F1 and M3-F4
 > are fixed. `Certificate` now stores a row-major
 > `Array (Option (Option Abs))`, `cellAt`/`lookup?` are O(1), `wellFormed`
 > checks the array length / entry cell / empty halt row without a per-state
@@ -456,7 +456,7 @@ to redo the interface.
 
 ## 8. Post-review fix status
 
-Applied in the uncommitted worktree (not part of the `b5494e5` snapshot):
+Applied in the M3-F1/F4 fix commit (not part of the `b5494e5` snapshot):
 
 | Finding | Status | Change |
 |---|---|---|
@@ -480,4 +480,4 @@ Verification of the worktree:
 
 The remaining merge blockers are therefore **M3-F2** (accept/record `hP`),
 **M3-F3** (restrict or implement labels), and **M3-F6** (labels/scaling test).
-M3-F1 and M3-F4 are no longer blockers in the worktree.
+M3-F1 and M3-F4 are no longer blockers.

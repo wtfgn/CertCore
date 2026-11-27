@@ -7,8 +7,8 @@ import CertCore.Domain
 The checker: three obligation families, a typed diagnostic, and **no search**
 (project plan §4.1, §5).
 
-Status: **M3.6.** The diagnostic, lookup, shape validation, init, edge and
-safety obligations are in; T5 is M3.7.
+Status: **M3.9.** The diagnostic, indexed lookup, shape validation, init, edge
+and safety obligations are in; T5 is in `Proofs.lean`.
 
 Obligations (each decided by a `ble` or `entails` call):
 
@@ -149,8 +149,9 @@ syntactic definedness predicate:
 * `len a`: the length is representable.
 
 `entails` decides these predicates. It is conservative for multiplication and
-division inside conditions (it returns `false`), so such programs are rejected,
-not accepted unsoundly. -/
+for division inside an assert (the guarded evaluator returns `none`); a branch
+guard's division preconditions are checked by `bexpDefined`. Rejected programs
+are not accepted unsoundly. -/
 
 /-- A structural always-true predicate. -/
 def safeTrue : BExp := .cmp .eq (.const I32.zero) (.const I32.zero)

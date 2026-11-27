@@ -28,7 +28,7 @@ $ lake build
 Build completed successfully.
 
 $ lake exe certcore
-certcore 0.1.0 (M2 interval domain; checker not implemented yet)
+certcore 0.1.0 (M3 checker library; JSON decoder/CLI at M4)
 
 $ lake env lean lean/CertCore/Audit.lean    # trusted axiom audit incl. check_sound; every line [propext, Quot.sound] or smaller
 ```
@@ -74,6 +74,7 @@ and the audit command above.
 - [`docs/known-gaps.md`](docs/known-gaps.md) — anything not proved, documented
 - [`docs/M1-review.md`](docs/M1-review.md) — interim M1 review, with post-review fixes
 - [`docs/M2-review.md`](docs/M2-review.md) — interim M2 review: the interval domain, its interface gaps, and the decisions behind it
+- [`docs/M3-review.md`](docs/M3-review.md) — interim M3 review: T5 status, checker cost, label and v1 conformance findings
 - [`docs/prior-art.md`](docs/prior-art.md) — what is borrowed, what is ours
 
 ## Reproducing the gates locally

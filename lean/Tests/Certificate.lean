@@ -7,25 +7,24 @@ Run with:
 
     lake env lean lean/Tests/Certificate.lean
 
-Pins the sparse-map lookup semantics before the checker exists:
-`some (some a)` is an abstract state, `some none` is the v1 `bot` marker, and
-`none` is a missing key (`⊤`).
+Pins the row-major lookup semantics: `some (some a)` is an abstract state,
+`some none` is the v1 `bot` marker, and `none` is a missing key (`⊤`).
 -/
 
 open CertCore
 
 def cert : Certificate Nat :=
-  { labels := 2,
-    entry := { point := 0, label := 0, state := some 7 },
-    states :=
-      [ { point := 1, label := 0, state := some 42 },
-        { point := 1, label := 1, state := none },
-        { point := 2, label := 0, state := some 0 } ] }
+  Certificate.ofSparse 2 3
+    { point := 0, label := 0, state := some 7 }
+    [ { point := 1, label := 0, state := some 42 },
+      { point := 1, label := 1, state := none },
+      { point := 2, label := 0, state := some 0 } ]
 
 #guard cert.entryPoint = 0
 #guard cert.entryLabel = 0
 #guard cert.entryState = some 7
 #guard cert.labels = 2
+#guard cert.points = 3
 
 #guard cert.lookup? 1 0 = some (some 42)
 #guard cert.lookup? 1 1 = some none

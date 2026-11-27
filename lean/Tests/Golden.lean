@@ -35,11 +35,10 @@ def st (x y : Int) : Interval.Abs :=
     mem := fun _ => Interval.top }
 
 def cert : Certificate D.Abs :=
-  { labels := 1,
-    entry := { point := 0, label := 0, state := some (D.initOf p) },
-    states :=
-      [ { point := 1, label := 0, state := some (st 4 0) },
-        { point := 2, label := 0, state := some (st 4 2) } ] }
+  Certificate.ofSparse 1 4
+    { point := 0, label := 0, state := some (D.initOf p) }
+    [ { point := 1, label := 0, state := some (st 4 0) },
+      { point := 2, label := 0, state := some (st 4 2) } ]
 
 #guard cert.wellFormed p
 #guard (check D p cert).isOk
@@ -49,3 +48,12 @@ theorem golden_check : check D p cert = .ok () := by
 
 theorem golden_safe : Program.safe p :=
   check_sound (D := D) (p := p) (cert := cert) (POn_init p) golden_check
+
+-- The same certificate with one corrupted target is rejected end-to-end.
+def badCert : Certificate D.Abs :=
+  Certificate.ofSparse 1 4
+    { point := 0, label := 0, state := some (D.initOf p) }
+    [ { point := 1, label := 0, state := some (st 4 0) },
+      { point := 2, label := 0, state := some (st 4 3) } ]
+
+#guard !(check D p badCert).isOk

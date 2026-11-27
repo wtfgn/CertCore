@@ -24,17 +24,17 @@ def st (n : Int) : Interval.Abs :=
     mem := fun _ => Interval.top }
 
 def pAssign : Program :=
-  { body := .assign 0 "x" (.const (c 1)), arrays := #[] }
+  { body := .seq (.assign 0 "x" (.const (c 1))) (.skip 1), arrays := #[] }
 
-def pSkip : Program := { body := .skip 0, arrays := #[] }
+def pSkip : Program :=
+  { body := .seq (.skip 0) (.skip 1), arrays := #[] }
 
 def goodEntry : StateAt D.Abs :=
   { point := 0, label := 0, state := some (D.initOf pAssign) }
 
 def certWith (target : Option D.Abs) : Certificate D.Abs :=
-  { labels := 1,
-    entry := goodEntry,
-    states := [ { point := 1, label := 0, state := target } ] }
+  Certificate.ofSparse 1 3 goodEntry
+    [ { point := 1, label := 0, state := target } ]
 
 def okTarget : Certificate D.Abs := certWith (some (st 1))
 def badTarget : Certificate D.Abs := certWith (some (st 2))
@@ -62,16 +62,14 @@ def botTarget : Certificate D.Abs := certWith none
 
 -- A missing target is `top`, so the edge obligation passes.
 def missingCert : Certificate D.Abs :=
-  { labels := 1, entry := goodEntry, states := [] }
+  Certificate.ofSparse 1 3 goodEntry []
 #guard (check D pAssign missingCert).isOk
 
 -- Multiple labels use the identity update at M3.5; both labels are checked.
 def twoLabels : Certificate D.Abs :=
-  { labels := 2,
-    entry := goodEntry,
-    states :=
-      [ { point := 1, label := 0, state := some (st 1) },
-        { point := 1, label := 1, state := some (st 2) } ] }
+  Certificate.ofSparse 2 3 goodEntry
+    [ { point := 1, label := 0, state := some (st 1) },
+      { point := 1, label := 1, state := some (st 2) } ]
 
 #guard twoLabels.wellFormed pAssign
 #guard !(check D pAssign twoLabels).isOk
@@ -79,9 +77,9 @@ def twoLabels : Certificate D.Abs :=
 -- A non-overwriting entry instruction must use the certificate's `entry` state,
 -- not the sparse-map default (`top`) at the entry key.
 def skipCert : Certificate D.Abs :=
-  { labels := 1,
-    entry := { point := 0, label := 0, state := some (D.initOf pSkip) },
-    states := [ { point := 1, label := 0, state := some (D.initOf pSkip) } ] }
+  Certificate.ofSparse 1 3
+    { point := 0, label := 0, state := some (D.initOf pSkip) }
+    [ { point := 1, label := 0, state := some (D.initOf pSkip) } ]
 
 #guard skipCert.wellFormed pSkip
 #guard (check D pSkip skipCert).isOk

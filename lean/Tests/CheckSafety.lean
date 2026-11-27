@@ -55,9 +55,9 @@ def pAssertBad : Program :=
     arrays := #[] }
 
 def assertCert (p : Program) : Certificate D.Abs :=
-  { labels := 1,
-    entry := { point := 0, label := 0, state := some (D.initOf p) },
-    states := [ { point := 1, label := 0, state := some (st1 1) } ] }
+  Certificate.ofSparse 1 3
+    { point := 0, label := 0, state := some (D.initOf p) }
+    [ { point := 1, label := 0, state := some (st1 1) } ]
 
 #guard (check D pAssert (assertCert pAssert)).isOk
 #guard !(check D pAssertBad (assertCert pAssertBad)).isOk
@@ -75,11 +75,10 @@ def pDiv : Program :=
     arrays := #[] }
 
 def divCert (xl xh : Int) : Certificate D2.Abs :=
-  { labels := 1,
-    entry := { point := 0, label := 0, state := some (D2.initOf pDiv) },
-    states :=
-      [ { point := 1, label := 0, state := some (st2 xl xh 0 0) },
-        { point := 2, label := 0, state := some (st2 1 1 10 10) } ] }
+  Certificate.ofSparse 1 4
+    { point := 0, label := 0, state := some (D2.initOf pDiv) }
+    [ { point := 1, label := 0, state := some (st2 xl xh 0 0) },
+      { point := 2, label := 0, state := some (st2 1 1 10 10) } ]
 
 #guard (check D2 pDiv (divCert 1 1)).isOk
 #guard !(check D2 pDiv (divCert (-1) 1)).isOk
@@ -108,9 +107,9 @@ def branchAbs : Interval.Abs :=
     mem := fun _ => Interval.top }
 
 def branchCert : Certificate D.Abs :=
-  { labels := 1,
-    entry := { point := 0, label := 0, state := some (D.initOf pBranch) },
-    states := [ { point := 1, label := 0, state := some branchAbs } ] }
+  Certificate.ofSparse 1 5
+    { point := 0, label := 0, state := some (D.initOf pBranch) }
+    [ { point := 1, label := 0, state := some branchAbs } ]
 
 #guard (check D pBranch branchCert).isOk
 
@@ -122,9 +121,9 @@ def pStore : Program :=
     arrays := #[2] }
 
 def storeCert (lo hi : Int) : Certificate DArr.Abs :=
-  { labels := 1,
-    entry := { point := 0, label := 0, state := some (DArr.initOf pStore) },
-    states := [ { point := 1, label := 0, state := some (stI lo hi) } ] }
+  Certificate.ofSparse 1 3
+    { point := 0, label := 0, state := some (DArr.initOf pStore) }
+    [ { point := 1, label := 0, state := some (stI lo hi) } ]
 
 #guard (check DArr pStore (storeCert 0 1)).isOk
 #guard !(check DArr pStore (storeCert 0 2)).isOk

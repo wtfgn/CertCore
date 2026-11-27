@@ -27,9 +27,9 @@ def bad : Interval.Abs :=
     mem := fun _ => Interval.top }
 
 def valid : Certificate D.Abs :=
-  { labels := 1,
-    entry := { point := 0, label := 0, state := some good },
-    states := [] }
+  Certificate.ofSparse 1 2
+    { point := 0, label := 0, state := some good }
+    []
 
 def badEntry : Certificate D.Abs :=
   { valid with entry := { point := 0, label := 0, state := some bad } }
@@ -38,14 +38,14 @@ def botEntry : Certificate D.Abs :=
   { valid with entry := { point := 0, label := 0, state := none } }
 
 def badOtherLabel : Certificate D.Abs :=
-  { labels := 2,
-    entry := { point := 0, label := 0, state := some good },
-    states := [ { point := 0, label := 1, state := some bad } ] }
+  Certificate.ofSparse 2 2
+    { point := 0, label := 0, state := some good }
+    [ { point := 0, label := 1, state := some bad } ]
 
 def missingOtherLabel : Certificate D.Abs :=
-  { labels := 2,
-    entry := { point := 0, label := 0, state := some good },
-    states := [] }
+  Certificate.ofSparse 2 2
+    { point := 0, label := 0, state := some good }
+    []
 
 #guard valid.wellFormed p0
 #guard (check D p0 valid).isOk

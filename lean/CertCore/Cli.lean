@@ -16,4 +16,4 @@ def version : String := "0.1.0"
 end CertCore
 
 def main : IO Unit :=
-  IO.println s!"certcore {CertCore.version} (M2 interval domain; checker not implemented yet)"
+  IO.println s!"certcore {CertCore.version} (M3 checker library; JSON decoder/CLI at M4)"
