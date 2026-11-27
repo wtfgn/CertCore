@@ -5,7 +5,7 @@ Precision is purchasable with certificate bytes, at a fixed trusted computing ba
 
 | | |
 |---|---|
-| Status | **M2 complete — interval domain + F1–F8 post-review fixes.** M1 semantics core is merged; M2.1–M2.9 cover the interval value type, membership, inclusion (T4a), convex-hull join (T4b), top, arithmetic/array transfer (T4c), `idxWithin`, the assembled `CertDomain` instance and ten hand-computed unit cases. The review fixes add the checker-interface fields (`initOf`, `entails`, `P_step`; F1), a clean axiom audit (F2), guard refinement + singleton division (F3), `ble` completeness (F4), v1 array memory (F5), a single trusted transfer path (F6), doc consolidation (F7), and the interface/demo tests (F8). T8's generic completeness field is an M3.1 decision; the checker/decoder (M3–M4) is next. |
+| Status | **M3 — checker and T5 (in progress).** M2 is merged; M3.1 adds the Lean-side `Certificate` type (entry + sparse state map, v1 shape). The diagnostic, checker skeleton, obligations and T5 are next. |
 | Trusted core | Lean 4 (`lean/CertCore/`), no Mathlib |
 | Untrusted | Haskell analyzer (M5), Python experiment harness (M10) |
 | Interface | JSON certificates, `docs/certificate-v1.md` |
@@ -44,7 +44,7 @@ $ lake env lean lean/CertCore/Audit.lean    # M1/M2/F1–F4 axiom audit; every l
 | `lean/CertCore/Domain/IntervalTransfer.lean` | checked endpoint arithmetic (`add`/`sub`), T4c (M2.6) | **yes** |
 | `lean/CertCore/Domain/IntervalArrays.lean` | abstract array state, `lenInterval`, `idxWithin` and its soundness (M2.7) | **yes** |
 | `lean/CertCore/Domain/IntervalInstance.lean` | assembled `CertDomain` instance: support-restricted `evalExprAbsOn`/`assignAbsOn`, `ble`/`top`/`join`/`transfer`, `entails`, `initOf`, `P_step` (M2.8/F1/F3/F6) | **yes** |
-| `lean/CertCore/Cert.lean` | certificate type, total JSON decoder | **yes** (M4) |
+| `lean/CertCore/Cert.lean` | certificate type (M3.1), total JSON decoder (M4) | **yes** |
 | `lean/CertCore/Check.lean` | three obligation families, typed diagnostic | **yes** (M3) |
 | `lean/CertCore/Proofs.lean` | theorem inventory T1–T10 | **yes** |
 | `lean/CertCore/Audit.lean` | `#print axioms` for M1/M2/F1–F4 trusted lemmas; CI fails on `Classical.choice`/`sorryAx`; `check_sound` at M3.8 | **yes** |
@@ -101,6 +101,7 @@ $ lake env lean lean/Tests/Instance.lean          # assembled CertDomain checks
 $ lake env lean lean/Tests/Interface.lean         # checker-interface fields (F1)
 $ lake env lean lean/Tests/Demo.lean              # guard refinement + singleton division (F3)
 $ lake env lean lean/Tests/IntervalUnit.lean      # ten hand-computed interval cases
+$ lake env lean lean/Tests/Certificate.lean       # certificate-type checks (M3.1)
 $ grep -rnE '\bsorry\b' lean --include='*.lean'  # must print nothing
 $ lake env lean lean/CertCore/Audit.lean         # M1/M2/F1–F4 footprint; CI fails on Classical.choice/sorryAx
 ```

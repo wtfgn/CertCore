@@ -16,7 +16,7 @@ already fixed.
 | Semantics (`eval`, `step`, `run`, `Safe`, `edges`) | `Semantics.lean` (M1) | *Defines* the safety property. `CFG.step_edge` connects `step` to the checker's edges. |
 | Interval domain (values, inclusion, meet, join, top, division) | `Domain/Interval.lean` (M2.1–M2.5, F3/F4) | Defines the boxes, `gamma`, `ble` (sound **and** complete), `meet`, `join`, `top`, and singleton division. A bug here changes a verdict. |
 | Interval transfer and instance | `Domain/IntervalTransfer.lean`, `Domain/IntervalArrays.lean`, `Domain/IntervalInstance.lean` (M2.6–M2.8, F1/F3/F6) | The **single** trusted transfer (`evalExprAbsOn`/`assignAbsOn`), the support-restricted instance (`bleAbs`/`joinAbs`/`transferAbs`), the checker interface (`entails`, `initOf`, `P_step`), guard refinement, and the array helpers (`lenInterval`, `idxWithin`). |
-| Certificate decoder | `Cert.lean` (M4) | Converts untrusted bytes into typed data; must be total. |
+| Certificate type + decoder | `Cert.lean` (M3.1 type; M4 decoder) | Holds the untrusted analyzer's states; the decoder must be total. |
 | Checker + generic soundness proof | `Check.lean` (M3) | Produces the verdict. |
 | The `#print axioms` audit | `Audit.lean` (M1/M2/F1; `check_sound` added at M3.8) | Evidence that the proof rests on nothing extra; CI fails on `Classical.choice`/`sorryAx`. |
 
