@@ -7,8 +7,8 @@ import CertCore.Domain
 The checker: three obligation families, a typed diagnostic, and **no search**
 (project plan §4.1, §5).
 
-Status: **M3.4.** The diagnostic, lookup, shape validation, `check` skeleton and
-the init obligation are in; the edge and safety obligations are M3.5–M3.6.
+Status: **M3.5.** The diagnostic, lookup, shape validation, init and edge
+obligations are in; the safety obligation and T5 are M3.6–M3.7.
 
 Obligations (each decided by a `ble` or `entails` call):
 
@@ -108,6 +108,12 @@ def ofEdge {Abs : Type} (e : Edge) (label : Label)
   { kind := .edge, point := some e.src, label := some label, edge := some e,
     expected := some expected, actual := some actual, detail := "" }
 
+/-- An edge whose successor state is explicitly `bot`. -/
+def ofEdgeBot {Abs : Type} (e : Edge) (label : Label) (expected : Abs) :
+    Diagnostic Abs :=
+  { kind := .edge, point := some e.src, label := some label, edge := some e,
+    expected := some expected, actual := none, detail := "target state is bot" }
+
 /-- A safety entailment failed. -/
 def safety {Abs : Type} (point : Point) (label : Label) (expected : Abs)
     (detail : String := "") : Diagnostic Abs :=
@@ -162,12 +168,57 @@ def checkInit (D : CertDomain) (p : Program) (cert : Certificate D.Abs) :
     CheckResult D.Abs Unit :=
   checkInitFrom D p cert (List.range cert.labels)
 
-/-- The checker. Shape validation and the init obligation are in; the edge and
-safety obligations are added by M3.5–M3.6. -/
+/-! ## M3.5 edge obligation
+
+For every CFG edge and every label, check
+`ble (transfer c (at src)) (at dst)`. This M3.5 instance uses the identity label
+update (the flat `none` scheme); branch-history successor labels are M9.3. A
+missing target state is `⊤`; an explicit `bot` target is a failure unless the
+source is itself unreachable (`bot`), in which case the edge is skipped.
+
+Labels are checked by `List.range cert.labels`; the shape contract guarantees
+`1 ≤ labels ≤ 64`. -/
+
+/-- Edge obligations for one edge, over every label. -/
+def checkEdgeLabels (D : CertDomain) (p : Program) (cert : Certificate D.Abs)
+    (e : Edge) : List Label → CheckResult D.Abs Unit
+  | [] => .ok ()
+  | l :: ls =>
+      match cert.stateAtEntry D e.src l with
+      | none =>
+          -- The source point is explicitly unreachable for this label.
+          checkEdgeLabels D p cert e ls
+      | some src =>
+          let expected := D.transfer e.cmd src
+          match cert.stateAtEntry D e.dst l with
+          | none => .error (Diagnostic.ofEdgeBot e l expected)
+          | some actual =>
+              if D.ble expected actual then
+                checkEdgeLabels D p cert e ls
+              else
+                .error (Diagnostic.ofEdge e l expected actual)
+
+/-- Edge obligations over a list of edges. -/
+def checkEdgesFrom (D : CertDomain) (p : Program) (cert : Certificate D.Abs) :
+    List Edge → CheckResult D.Abs Unit
+  | [] => .ok ()
+  | e :: es =>
+      match checkEdgeLabels D p cert e (List.range cert.labels) with
+      | .ok () => checkEdgesFrom D p cert es
+      | .error d => .error d
+
+/-- Edge obligations over the compiled CFG. -/
+def checkEdges (D : CertDomain) (p : Program) (cert : Certificate D.Abs) :
+    CheckResult D.Abs Unit :=
+  checkEdgesFrom D p cert (Program.compile p).edges
+
+/-- The checker: shape, init, then edge obligations. Safety is M3.6. -/
 def check (D : CertDomain) (p : Program) (cert : Certificate D.Abs) :
     CheckResult D.Abs Unit :=
   if cert.wellFormed p then
-    checkInit D p cert
+    match checkInit D p cert with
+    | .error d => .error d
+    | .ok () => checkEdges D p cert
   else
     .error (Diagnostic.malformed "malformed certificate shape")
 
