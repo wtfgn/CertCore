@@ -99,7 +99,8 @@ def addOverflow : Instr :=
 /-! ## Branch definedness -/
 
 def pBranch : Program :=
-  { body := .ite 0 (.cmp .lt (.var "x") (.const (c 3))) (.skip 1) (.skip 2),
+  { body := .seq (.assign 0 "x" (.const (c 0)))
+      (.ite 1 (.cmp .lt (.var "x") (.const (c 3))) (.skip 2) (.skip 3)),
     arrays := #[] }
 
 def branchAbs : Interval.Abs :=
@@ -108,8 +109,8 @@ def branchAbs : Interval.Abs :=
 
 def branchCert : Certificate D.Abs :=
   { labels := 1,
-    entry := { point := 0, label := 0, state := some branchAbs },
-    states := [] }
+    entry := { point := 0, label := 0, state := some (D.initOf pBranch) },
+    states := [ { point := 1, label := 0, state := some branchAbs } ] }
 
 #guard (check D pBranch branchCert).isOk
 

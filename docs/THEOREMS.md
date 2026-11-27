@@ -13,7 +13,7 @@ Status values: `todo` · `in-progress` · `proved` · `post-month`.
 | **T2** | `safe_iff : Safe cfg s ↔ ¬ ∃ n, run cfg n cfg.entry s = none` (no failing prefix exists), with `safe_iff_exists : Safe ↔ ∀ n, ∃ c, run … = some c` | Removes coinduction; every later proof is an ordinary induction on steps | Low | **proved** | M1.10 | `Semantics.lean` |
 | **T3** | `run_sound : s ∈ γ a → run n s = some s' → s' ∈ γ (transferStar n a)` | Lifts transfer soundness to traces | Medium | todo | M3 | `Proofs.lean` |
 | **T4** | Per domain: `ble_sound`, `join_sound`, `transfer_sound`, `top_sound`, and `entails_sound` for the safety-predicate test | Domain instances; intervals proved | Medium | **proved** (intervals) | M2 + F1 | `Domain/Interval*.lean` |
-| **T5** | **`check_sound : check D p c = .ok → Program.safe p`**, where `Program.safe` requires `Program.WF` | **The kernel theorem** | **Medium** | todo | M3.7 | `Check.lean` |
+| **T5** | **`check_sound : D.P (State.init p) → check D p c = .ok → Program.safe p`**, where `Program.safe` requires `Program.WF` | **The kernel theorem** | **Medium** | **proved (M3.7)** | M3.7 | `Proofs.lean` |
 | **T6** | Product instance: `ble_sound`, `transfer_sound`, `join_sound` for `D₁ × D₂` | Combinator (a), genericity made executable | Low | todo | M6.2 | `Domain/Product.lean` |
 | **T7** | `reduce_sound : γ (ρ (a,b)) ⊆ γ a ∩ γ b` and `reduce_idem : ρ ∘ ρ = ρ` | Reduced product; **post-month** | **High** | post-month | M8 | `Domain/Reduce.lean` |
 | **T8** | `encode_accepts : IsPostFixpoint p I → InvariantEntailsSafety p I → check D p (encode p I) = .ok` | Usability / two-sidedness of the contract | Medium | todo | M3/M4 | `Cert.lean` |

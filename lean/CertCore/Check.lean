@@ -318,14 +318,17 @@ def checkEdges (D : CertDomain) (p : Program) (cert : Certificate D.Abs) :
 /-- The checker: shape, init, edge, then safety obligations. -/
 def check (D : CertDomain) (p : Program) (cert : Certificate D.Abs) :
     CheckResult D.Abs Unit :=
-  if cert.wellFormed p then
-    match checkInit D p cert with
-    | .error d => .error d
-    | .ok () =>
-        match checkEdges D p cert with
-        | .error d => .error d
-        | .ok () => checkSafety D p cert
+  if p.checkWF then
+    if cert.wellFormed p then
+      match checkInit D p cert with
+      | .error d => .error d
+      | .ok () =>
+          match checkEdges D p cert with
+          | .error d => .error d
+          | .ok () => checkSafety D p cert
+    else
+      .error (Diagnostic.malformed "malformed certificate shape")
   else
-    .error (Diagnostic.malformed "malformed certificate shape")
+    .error (Diagnostic.malformed "program is not well formed")
 
 end CertCore

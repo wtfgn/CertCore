@@ -5,7 +5,7 @@ Precision is purchasable with certificate bytes, at a fixed trusted computing ba
 
 | | |
 |---|---|
-| Status | **M3 — checker and T5 (in progress).** M2 is merged; M3.1–M3.5 add the certificate type, typed diagnostic, checker skeleton, lookup, shape validation, init and edge obligations; M3.6 adds safety obligations (assert/division/overflow/branch/array bounds). T5 is next. |
+| Status | **M3 — checker and T5 (in progress).** M2 is merged; M3.1–M3.6 add the certificate type, typed diagnostic, checker skeleton, lookup, shape validation and the init/edge/safety obligations. M3.7 proves T5 (`check_sound`, with `D.P (State.init p)` as the base-case premise). M3.8 audit and M3.9 golden accept remain. |
 | Trusted core | Lean 4 (`lean/CertCore/`), no Mathlib |
 | Untrusted | Haskell analyzer (M5), Python experiment harness (M10) |
 | Interface | JSON certificates, `docs/certificate-v1.md` |
