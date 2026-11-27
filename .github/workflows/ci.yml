@@ -125,6 +125,10 @@ jobs:
       - name: Certificate smoke tests
         run: lake env lean lean/Tests/Certificate.lean
 
+      # Typed diagnostic and Except plumbing (M3.2).
+      - name: Diagnostic smoke tests
+        run: lake env lean lean/Tests/Diagnostic.lean
+
       # Roadmap §2 rule 5: main never carries an undocumented unproved goal.
       # Word-boundary match so `sorryAx` in prose does not trip it.
       - name: Reject 'sorry' in the trusted tree
