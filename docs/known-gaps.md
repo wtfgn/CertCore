@@ -35,6 +35,11 @@ fixed:
   `not`/`and`/`or`; `*`, `/`, array reads, and `len` return `false`. A safe
   program whose assert or divisor needs one of those is rejected, not accepted.
   Extending the test is precision work, not a soundness fix.
+- **The v1 `mem` map is optional (F5).** An analyzer that omits it gives every
+  array the `top` summary; a read then has no content precision. This is
+  precision loss, not unsoundness. The M5 emitter should emit summaries for the
+  arrays it reads, and the M4.2 decoder must reject unknown array numbers and
+  malformed intervals as specified in `certificate-v1.md` §5.1.
 - Inclusion is incomplete for octagons (when they exist): the checker may
   reject a valid invariant. See [`NONGOALS.md`](NONGOALS.md).
 - Certificates of unsafety are out of scope: the protocol proves safety

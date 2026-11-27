@@ -1461,3 +1461,35 @@ still clean.
 
 This removes roughly 250 lines from the trusted tree and eliminates the risk of
 two transfer semantics drifting without a proof that they agree. F7–F8 remain.
+
+---
+
+## 17. Post-review fix — F7/F8 (2026-11-27)
+
+**F7: docs and registry.**
+- `TCB.md` now lists the interval domain and instance as trusted components,
+  states the M2 + F1–F6 boundary, and describes the M1/M2/F1–F4 audit plus the
+  CI gate.
+- `Cli.lean` prints the M2 message; the README quick start/output and layout
+  table describe the M2 + F1–F6 status and the 21-test registry.
+- `known-gaps.md` records the conservative `entails` and the optional v1 `mem`
+  map; `THEOREMS.md` has T4 proved, `ble_complete` for T8's inclusion half, and
+  T8's `InvariantEntailsSafety` hypothesis.
+- The branch is **not merged to `main`** in this pass. The review's F7 asked for
+  a PR/merge; the user authorized commits, not a merge, so the branch stays for
+  review. `main` remains at M1 until that merge is approved.
+
+**F8: tests.**
+- The registry is now 21 files: the 19 originals plus `Tests/Interface.lean`
+  (F1) and `Tests/Demo.lean` (F3).
+- `Tests/Ble.lean` pins the `i32Min`/`i32Max` edge cases and `ble_complete`;
+  `Tests/IntervalUnit.lean` pins singleton division; `Tests/Transfer.lean` and
+  `Tests/Arrays.lean` now exercise the single final transfer path.
+- `Demo` closes both showpieces; `Interface` pins the F1 fields. An end-to-end
+  certificate test still requires M3's checker, and decoder adversarial tests
+  require M4.2; those are the remaining test gaps by design.
+
+**Verification.** Build green (29 jobs, no warnings); 21/21 test files pass;
+audit clean; CI fails on `Classical.choice`/`sorryAx`; `git diff --check`
+clean. F1/F2 → `3f7556b`, F3 → `bf01dbb`, F4 → `cd1c26f`, F6 → `cb39de5`; F5/F7/F8
+are docs/tests and are committed with F7.
