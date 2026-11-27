@@ -842,8 +842,9 @@ theorem subGuarded_sound {il ir i : Interval}
 
 /-- Evaluation that returns `some i` only when the expression is guaranteed to
 evaluate and its value lies in `i`. `+`/`-` use the guarded endpoint
-arithmetic; multiplication, division, array reads and `len` are `none`
-(conservative: `entails` declines to certify them). -/
+arithmetic; `len` is exact when the array is in support; multiplication,
+division and array reads remain `none` (conservative: `entails` declines to
+certify them). -/
 def evalExprGuarded (_lengths : Arr → Nat) (_vars : List Var) (_arrays : List Arr)
     (abs : Abs) : Expr → Option Interval
   | .const n => some (toInterval n)
@@ -859,7 +860,12 @@ def evalExprGuarded (_lengths : Arr → Nat) (_vars : List Var) (_arrays : List 
   | .mul _ _ => none
   | .div _ _ => none
   | .read _ _ => none
-  | .len _ => none
+  | .len a =>
+      if arrMem a _arrays then
+        match I32.ofInt? (_lengths a : Int) with
+        | some n => some (toInterval n)
+        | none => none
+      else none
 
 theorem evalExprGuarded_sound {lengths : Arr → Nat} {vars : List Var}
     {arrays : List Arr} {abs : Abs} {s : State} {e : Expr} {i : Interval}
@@ -900,7 +906,19 @@ theorem evalExprGuarded_sound {lengths : Arr → Nat} {vars : List Var}
   | mul _ _ => simp [evalExprGuarded] at h
   | div _ _ => simp [evalExprGuarded] at h
   | read _ _ => simp [evalExprGuarded] at h
-  | len _ => simp [evalExprGuarded] at h
+  | len a =>
+      simp only [evalExprGuarded] at h
+      by_cases ha : arrMem a arrays
+      · simp [ha] at h
+        cases hof : I32.ofInt? (lengths a : Int) with
+        | none => simp [hof] at h
+        | some n =>
+            simp [hof] at h
+            cases h
+            have hlen : (s.memAt a).size = lengths a := hs.2.1 a (arrMem_sound ha)
+            refine ⟨n, ?_, gamma_toInterval n⟩
+            simp [eval, hlen, hof]
+      · simp [ha] at h
 
 /-! ### Guarded comparisons and boolean entailment -/
 

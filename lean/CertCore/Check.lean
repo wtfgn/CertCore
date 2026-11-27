@@ -7,8 +7,8 @@ import CertCore.Domain
 The checker: three obligation families, a typed diagnostic, and **no search**
 (project plan §4.1, §5).
 
-Status: **M3.5.** The diagnostic, lookup, shape validation, init and edge
-obligations are in; the safety obligation and T5 are M3.6–M3.7.
+Status: **M3.6.** The diagnostic, lookup, shape validation, init, edge and
+safety obligations are in; T5 is M3.7.
 
 Obligations (each decided by a `ble` or `entails` call):
 
@@ -126,12 +126,6 @@ end Diagnostic
 a typed `Diagnostic`, never a string. -/
 abbrev CheckResult (Abs : Type) (α : Type) := Except (Diagnostic Abs) α
 
-/-! ## M3.4 init obligation
-
-The checker's base case is `ble (initOf p) (at entry)` for every label at the
-entry point. The certificate's `entry` supplies its own label; other labels at
-the same point use the sparse map, and a missing label is `⊤`. -/
-
 /-- The state used by the init obligation: the certificate's `entry` for its own
 `(point,label)`, and the sparse map for every other label at the entry point. -/
 def Certificate.stateAtEntry (D : CertDomain) (c : Certificate D.Abs)
@@ -140,6 +134,115 @@ def Certificate.stateAtEntry (D : CertDomain) (c : Certificate D.Abs)
     c.entry.state
   else
     c.stateAt D p l
+
+/-! ## M3.6 safety predicates
+
+Safety obligations are structural, derived from the compiled instruction at a
+point. `assert b` requires `b` (truth and definedness); a branch requires only
+that the guard is **defined** (either outcome is allowed). Expressions get a
+syntactic definedness predicate:
+
+* `+`/`-`/`*`: both operands defined and the operation itself does not fail
+  (the equality `e = e` is true exactly when `eval e` succeeds);
+* `/`: operands defined, divisor non-zero, and not `min / -1`;
+* `read a i`: index expression defined and `0 ≤ i < len a`;
+* `len a`: the length is representable.
+
+`entails` decides these predicates. It is conservative for multiplication and
+division inside conditions (it returns `false`), so such programs are rejected,
+not accepted unsoundly. -/
+
+/-- A structural always-true predicate. -/
+def safeTrue : BExp := .cmp .eq (.const I32.zero) (.const I32.zero)
+
+/-- Conjunction of safety predicates. -/
+def safeAnd (a b : BExp) : BExp := .and a b
+
+/-- Definedness of an expression, as a predicate over the pre-state. -/
+def exprSafe : Expr → BExp
+  | .const _ => safeTrue
+  | .var _ => safeTrue
+  | .add l r =>
+      safeAnd (exprSafe l)
+        (safeAnd (exprSafe r) (.cmp .eq (.add l r) (.add l r)))
+  | .sub l r =>
+      safeAnd (exprSafe l)
+        (safeAnd (exprSafe r) (.cmp .eq (.sub l r) (.sub l r)))
+  | .mul l r =>
+      safeAnd (exprSafe l)
+        (safeAnd (exprSafe r) (.cmp .eq (.mul l r) (.mul l r)))
+  | .div l r =>
+      safeAnd (exprSafe l)
+        (safeAnd (exprSafe r)
+          (safeAnd (.cmp .ne r (.const I32.zero))
+            (.not (safeAnd (.cmp .eq l (.const I32.min))
+              (.cmp .eq r (.const (I32.ofIntWrap (-1))))))))
+  | .read a i =>
+      safeAnd (exprSafe i)
+        (safeAnd (.cmp .le (.const I32.zero) i) (.cmp .lt i (.len a)))
+  | .len a => .cmp .eq (.len a) (.len a)
+
+/-- Definedness of a condition. A branch is safe when its guard is defined; the
+comparison's truth is not required because either outcome is a valid step. -/
+def bexpDefined : BExp → BExp
+  | .cmp _ l r => safeAnd (exprSafe l) (exprSafe r)
+  | .not b => bexpDefined b
+  | .and l r => safeAnd (bexpDefined l) (bexpDefined r)
+  | .or l r => safeAnd (bexpDefined l) (bexpDefined r)
+
+/-- Safety predicate of an atomic instruction. -/
+def atomicSafe : AtomicCmd → BExp
+  | .skip => safeTrue
+  | .assign _ e => exprSafe e
+  | .store a i v =>
+      safeAnd (exprSafe i)
+        (safeAnd (exprSafe v)
+          (safeAnd (.cmp .le (.const I32.zero) i) (.cmp .lt i (.len a))))
+  | .assert b => b
+
+/-- Safety predicate of a compiled instruction. -/
+def instrSafe : Instr → BExp
+  | .atomic cmd _ => atomicSafe cmd
+  | .branch b _ _ => bexpDefined b
+
+/-- Safety obligations for one point and every label. `bot` skips the point. -/
+def checkSafetyLabels (D : CertDomain) (cert : Certificate D.Abs)
+    (instr : Instr) (point : Point) : List Label → CheckResult D.Abs Unit
+  | [] => .ok ()
+  | l :: ls =>
+      match cert.stateAtEntry D point l with
+      | none => checkSafetyLabels D cert instr point ls
+      | some a =>
+          if D.entails a (instrSafe instr) then
+            checkSafetyLabels D cert instr point ls
+          else
+            .error (Diagnostic.safety point l a "safety predicate not entailed")
+
+/-- Safety obligations over a list of points of an already compiled CFG. -/
+def checkSafetyPoints (D : CertDomain) (cert : Certificate D.Abs) (cfg : CFG) :
+    List Point → CheckResult D.Abs Unit
+  | [] => .ok ()
+  | pt :: pts =>
+      match cfg.instrAt pt with
+      | none => checkSafetyPoints D cert cfg pts
+      | some instr =>
+          match checkSafetyLabels D cert instr pt (List.range cert.labels) with
+          | .ok () => checkSafetyPoints D cert cfg pts
+          | .error d => .error d
+
+/-- Safety obligations over every point of the compiled CFG. The CFG is compiled
+once, not per point, so the checker stays linear in the certificate/program
+size. -/
+def checkSafety (D : CertDomain) (p : Program) (cert : Certificate D.Abs) :
+    CheckResult D.Abs Unit :=
+  let cfg := Program.compile p
+  checkSafetyPoints D cert cfg (List.range cfg.instrs.size)
+
+/-! ## M3.4 init obligation
+
+The checker's base case is `ble (initOf p) (at entry)` for every label at the
+entry point. The certificate's `entry` supplies its own label; other labels at
+the same point use the sparse map, and a missing label is `⊤`. -/
 
 /-- The init diagnostic when the entry state is explicitly `bot`. -/
 def Diagnostic.initBot {Abs : Type} (point : Point) (label : Label)
@@ -212,13 +315,16 @@ def checkEdges (D : CertDomain) (p : Program) (cert : Certificate D.Abs) :
     CheckResult D.Abs Unit :=
   checkEdgesFrom D p cert (Program.compile p).edges
 
-/-- The checker: shape, init, then edge obligations. Safety is M3.6. -/
+/-- The checker: shape, init, edge, then safety obligations. -/
 def check (D : CertDomain) (p : Program) (cert : Certificate D.Abs) :
     CheckResult D.Abs Unit :=
   if cert.wellFormed p then
     match checkInit D p cert with
     | .error d => .error d
-    | .ok () => checkEdges D p cert
+    | .ok () =>
+        match checkEdges D p cert with
+        | .error d => .error d
+        | .ok () => checkSafety D p cert
   else
     .error (Diagnostic.malformed "malformed certificate shape")
 

@@ -5,7 +5,7 @@ Precision is purchasable with certificate bytes, at a fixed trusted computing ba
 
 | | |
 |---|---|
-| Status | **M3 — checker and T5 (in progress).** M2 is merged; M3.1–M3.4 add the certificate type, typed diagnostic, checker skeleton, lookup, shape validation and init obligation; M3.5 adds edge obligations. Safety and T5 are next. |
+| Status | **M3 — checker and T5 (in progress).** M2 is merged; M3.1–M3.5 add the certificate type, typed diagnostic, checker skeleton, lookup, shape validation, init and edge obligations; M3.6 adds safety obligations (assert/division/overflow/branch/array bounds). T5 is next. |
 | Trusted core | Lean 4 (`lean/CertCore/`), no Mathlib |
 | Untrusted | Haskell analyzer (M5), Python experiment harness (M10) |
 | Interface | JSON certificates, `docs/certificate-v1.md` |
@@ -106,6 +106,7 @@ $ lake env lean lean/Tests/Diagnostic.lean        # typed diagnostic checks (M3.
 $ lake env lean lean/Tests/CheckSkeleton.lean     # checker lookup/shape checks (M3.3)
 $ lake env lean lean/Tests/CheckInit.lean         # init-obligation checks (M3.4)
 $ lake env lean lean/Tests/CheckEdges.lean        # edge-obligation checks (M3.5)
+$ lake env lean lean/Tests/CheckSafety.lean       # safety-obligation checks (M3.6)
 $ grep -rnE '\bsorry\b' lean --include='*.lean'  # must print nothing
 $ lake env lean lean/CertCore/Audit.lean         # M1/M2/F1–F4 footprint; CI fails on Classical.choice/sorryAx
 ```

@@ -46,6 +46,13 @@ fixed:
   T8 for the interval instance after proving `bleAbs_complete`, or add a
   completeness field/hypothesis. `check`/`encode` do not exist yet, so this is a
   contract decision, not a missing proof of T8.
+- **Safety entailment is conservative (M3.6).** The checker's structural
+  `exprSafe` predicates are discharged by `entails`, which handles constants,
+  variables, `+`/`-`, `len`, and comparisons but not multiplication or division
+  *inside* a condition/assert expression. Such programs are rejected, not
+  accepted unsoundly. `add`/`sub` overflow and division-by-zero/`min/-1` are
+  checked; multiplication in a safety-relevant expression is a precision gap,
+  not a soundness gap.
 - Inclusion is incomplete for octagons (when they exist): the checker may
   reject a valid invariant. See [`NONGOALS.md`](NONGOALS.md).
 - Certificates of unsafety are out of scope: the protocol proves safety
