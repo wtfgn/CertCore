@@ -1,7 +1,7 @@
 # TCB — what is trusted, and why
 
 One page. Every trusted component, every trusted translation, and the audit
-command. Finalised in M11.5; this is the M2 + F1–F6 status with the boundary
+command. Finalised in M11.5; this is the M2 + F1–F8 status with the boundary
 already fixed.
 
 ## Inside the trusted base
@@ -62,7 +62,7 @@ named here rather than hidden. `#print axioms` cannot see them.
 $ lake env lean lean/CertCore/Audit.lean
 ```
 
-At M2 + F1–F6 the script prints the footprint of the M1 lemmas, the interval
+At M2 + F1–F8 the script prints the footprint of the M1 lemmas, the interval
 domain's T4a/T4b/top/arithmetic/array transfer, the instance's soundness fields,
 the F1 checker interface, and the F3/F4 lemmas (`meet_sound`, `div_sound`,
 `refineVar_sound`, `refineAbs_sound`, `ble_complete`, …). Every line must be

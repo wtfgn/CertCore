@@ -75,6 +75,13 @@ Status values: `todo` · `in-progress` · `proved` · `post-month`.
   `entails`; the statement therefore carries an explicit
   `InvariantEntailsSafety` hypothesis (or must restrict to predicates the test
   decides exactly). T8 itself is still M3/M4, where `check`/`encode` exist.
+- **T8's inclusion half is not yet generic over `CertDomain`.** What is proved is
+  `Interval.ble_complete` for the interval value type. `bleAbs_complete` for the
+  finite-support `Abs`, and a `ble_complete` field in `CertDomain`, are not yet
+  present. M3.1 must either state T8 for the interval instance after proving
+  `bleAbs_complete`, or add a completeness field/hypothesis to `CertDomain`.
+  The T8 row is a contract placeholder until that decision; `check` and `encode`
+  do not exist yet.
 - **T5's conclusion is `Program.safe`, which includes `Program.WF`.** A malformed
   source program has no meaning and is never certified safe; M3's checker must
   establish the decidable source contract (`checkWF`: dense unique points,

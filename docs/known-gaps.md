@@ -9,7 +9,7 @@ owns it, and whether it is a *deferral* (planned) or a *limitation* (won't fix).
 
 | # | Gap | Blocks | Owner | Kind | Resolution |
 |---|---|---|---|---|---|
-| — | *(no `sorry`; the F1 interface fields are proved for intervals; the audit is clean after F2)* | — | — | — | Every listed trusted lemma depends on `[propext, Quot.sound]` or smaller; CI fails on `Classical.choice`/`sorryAx`. |
+| — | *(no `sorry`; the F1 interface fields are proved for intervals; the audit is clean after F2)* | — | — | — | Every listed trusted lemma depends on `[propext, Quot.sound]` or smaller; CI fails on `Classical.choice`/`sorryAx`. T8's generic completeness field is a pending M3.1 contract decision (see the limitation below). |
 
 ## Standing limitations (not gaps)
 
@@ -40,6 +40,12 @@ fixed:
   precision loss, not unsoundness. The M5 emitter should emit summaries for the
   arrays it reads, and the M4.2 decoder must reject unknown array numbers and
   malformed intervals as specified in `certificate-v1.md` §5.1.
+- **T8's generic inclusion half is not yet in the interface.** `Interval.ble_complete`
+  is proved for the interval value type, but `bleAbs_complete` (finite-support
+  `Abs`) and a `CertDomain.ble_complete` field are absent. M3.1 must either state
+  T8 for the interval instance after proving `bleAbs_complete`, or add a
+  completeness field/hypothesis. `check`/`encode` do not exist yet, so this is a
+  contract decision, not a missing proof of T8.
 - Inclusion is incomplete for octagons (when they exist): the checker may
   reject a valid invariant. See [`NONGOALS.md`](NONGOALS.md).
 - Certificates of unsafety are out of scope: the protocol proves safety

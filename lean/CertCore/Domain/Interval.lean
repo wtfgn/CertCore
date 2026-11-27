@@ -1,7 +1,7 @@
 import CertCore.I32
 
 /-!
-# `CertCore.Domain.Interval` — the interval domain's value type (M2.1)
+# `CertCore.Domain.Interval` — interval value type and core operations (M2.1–M2.5)
 
 An interval over signed 32-bit integers:
 
@@ -20,8 +20,10 @@ An interval over signed 32-bit integers:
 `⊤` is `itv none none`; it is introduced with the other domain operations at
 M2.5 rather than as a special constructor here.
 
-The gamma function, inclusion, join and transfer are M2.2–M2.6 and live in this
-file as they land.
+The gamma function, inclusion (`ble`), join, top, meet and singleton division
+are M2.2–M2.5/F3 and live in this file; endpoint arithmetic/T4c is in
+`IntervalTransfer`, guard refinement is in `IntervalInstance`, and array helpers
+are in `IntervalArrays`.
 -/
 
 namespace CertCore

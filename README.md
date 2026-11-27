@@ -5,7 +5,7 @@ Precision is purchasable with certificate bytes, at a fixed trusted computing ba
 
 | | |
 |---|---|
-| Status | **M2 complete — interval domain + F1–F6 post-review fixes.** M1 semantics core is merged; M2.1–M2.9 cover the interval value type, membership, inclusion (T4a), convex-hull join (T4b), top, arithmetic/array transfer (T4c), `idxWithin`, the assembled `CertDomain` instance and ten hand-computed unit cases. The review fixes add the checker-interface fields (`initOf`, `entails`, `P_step`; F1), a clean axiom audit (F2), guard refinement + singleton division (F3), `ble` completeness (F4), v1 array memory (F5), and a single trusted transfer path (F6). The checker/decoder (M3–M4) is next. |
+| Status | **M2 complete — interval domain + F1–F8 post-review fixes.** M1 semantics core is merged; M2.1–M2.9 cover the interval value type, membership, inclusion (T4a), convex-hull join (T4b), top, arithmetic/array transfer (T4c), `idxWithin`, the assembled `CertDomain` instance and ten hand-computed unit cases. The review fixes add the checker-interface fields (`initOf`, `entails`, `P_step`; F1), a clean axiom audit (F2), guard refinement + singleton division (F3), `ble` completeness (F4), v1 array memory (F5), a single trusted transfer path (F6), doc consolidation (F7), and the interface/demo tests (F8). T8's generic completeness field is an M3.1 decision; the checker/decoder (M3–M4) is next. |
 | Trusted core | Lean 4 (`lean/CertCore/`), no Mathlib |
 | Untrusted | Haskell analyzer (M5), Python experiment harness (M10) |
 | Interface | JSON certificates, `docs/certificate-v1.md` |

@@ -143,6 +143,15 @@ An example with an array summary (array 0's cells all in `[10,20]`):
 {"kind":"itv","vars":{"x":{"lo":0,"hi":0}},"mem":{"0":{"lo":10,"hi":20}}}
 ```
 
+**Compatibility.** `mem` is a backward-compatible *extension* of the frozen
+`certcore/1` state schema: a certificate that omits it means “every array is
+`⊤`”, and that is exactly the pre-`mem` encoding. A certificate that uses `mem`
+requires a decoder that knows the field; a strict old decoder would reject it as
+an unknown field. Since no decoder exists yet, M4.1 must either (a) keep
+`certcore/1` and add the optional field with a decoder test, or (b) bump the
+format version for certificates that use `mem`. Record the choice with M4.2;
+until then, emit `mem` only for a `certcore/1`+`mem`-aware consumer.
+
 ### 5.2 Reserved kinds (not in v1)
 
 `"domain": {"kind":"product","left":…,"right":…}` with state

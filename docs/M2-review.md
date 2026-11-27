@@ -13,6 +13,10 @@
 | Merge state | 9 commits ahead of `main` (`13f85ec`, M1); not merged |
 | Verdict | **M2 is sound and code-complete, but not demo-complete or audit-clean.** The interval domain is real and its soundness fields typecheck, but the `CertDomain` interface is still missing the operations the checker needs (`entails`, `init`, `bot`, `P`-preservation), two showcase programs cannot yet be certified, and the audit gate does not cover the new trusted code. Fix the two `Classical.choice` roots and the docs before merge; settle the interface and the two precision gaps at the top of M3. |
 
+> **Post-review fixes (F1–F8) are recorded in §14–§17.** They supersede this
+> table's axiom count, merge status, and the findings where they conflict; the
+> review below is the original M2 snapshot at `a594435`.
+
 This review is based on reading every Lean source, test, and design document;
 building the tree; running all nineteen test files; grepping for `sorry`;
 printing `#print axioms` for all 43 proved M2 lemmas; and reproducing two
