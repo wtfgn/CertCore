@@ -7,9 +7,8 @@ import CertCore.Domain
 The checker: three obligation families, a typed diagnostic, and **no search**
 (project plan §4.1, §5).
 
-Status: **M3.3.** The diagnostic, certificate lookup, structural certificate
-validation and the `check` skeleton are in; the init/edge/safety obligations are
-M3.4–M3.6.
+Status: **M3.4.** The diagnostic, lookup, shape validation, `check` skeleton and
+the init obligation are in; the edge and safety obligations are M3.5–M3.6.
 
 Obligations (each decided by a `ble` or `entails` call):
 
@@ -121,19 +120,54 @@ end Diagnostic
 a typed `Diagnostic`, never a string. -/
 abbrev CheckResult (Abs : Type) (α : Type) := Except (Diagnostic Abs) α
 
-/-! ## M3.3 skeleton
+/-! ## M3.4 init obligation
 
-The signature and total failure behaviour are fixed here. `check` validates the
-structural shape of the typed certificate and returns `.ok ()`; M3.4–M3.6 insert
-the three obligation families. A malformed shape is a typed `Diagnostic`, never
-a crash. -/
+The checker's base case is `ble (initOf p) (at entry)` for every label at the
+entry point. The certificate's `entry` supplies its own label; other labels at
+the same point use the sparse map, and a missing label is `⊤`. -/
 
-/-- The checker. The skeleton currently validates the certificate shape and
-returns success; semantic obligations are added by M3.4–M3.6. -/
-def check (_D : CertDomain) (p : Program) (cert : Certificate _D.Abs) :
-    CheckResult _D.Abs Unit :=
+/-- The state used by the init obligation: the certificate's `entry` for its own
+`(point,label)`, and the sparse map for every other label at the entry point. -/
+def Certificate.stateAtEntry (D : CertDomain) (c : Certificate D.Abs)
+    (p : Point) (l : Label) : Option D.Abs :=
+  if p = c.entry.point ∧ l = c.entry.label then
+    c.entry.state
+  else
+    c.stateAt D p l
+
+/-- The init diagnostic when the entry state is explicitly `bot`. -/
+def Diagnostic.initBot {Abs : Type} (point : Point) (label : Label)
+    (expected : Abs) : Diagnostic Abs :=
+  { kind := .init, point := some point, label := some label, edge := none,
+    expected := some expected, actual := none, detail := "entry state is bot" }
+
+/-- Check `ble (initOf p) (at entry)` for every label at the entry point.
+Missing labels are `⊤`; an explicit `bot` entry cannot contain the initial
+state, so it is rejected. -/
+def checkInitFrom (D : CertDomain) (p : Program) (cert : Certificate D.Abs) :
+    List Label → CheckResult D.Abs Unit
+  | [] => .ok ()
+  | l :: ls =>
+      match cert.stateAtEntry D cert.entry.point l with
+      | none =>
+          .error (Diagnostic.initBot cert.entry.point l (D.initOf p))
+      | some a =>
+          if D.ble (D.initOf p) a then
+            checkInitFrom D p cert ls
+          else
+            .error (Diagnostic.init cert.entry.point l (D.initOf p) a)
+
+/-- The init obligation for all labels of the certificate. -/
+def checkInit (D : CertDomain) (p : Program) (cert : Certificate D.Abs) :
+    CheckResult D.Abs Unit :=
+  checkInitFrom D p cert (List.range cert.labels)
+
+/-- The checker. Shape validation and the init obligation are in; the edge and
+safety obligations are added by M3.5–M3.6. -/
+def check (D : CertDomain) (p : Program) (cert : Certificate D.Abs) :
+    CheckResult D.Abs Unit :=
   if cert.wellFormed p then
-    .ok ()
+    checkInit D p cert
   else
     .error (Diagnostic.malformed "malformed certificate shape")
 

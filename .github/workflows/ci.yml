@@ -133,6 +133,10 @@ jobs:
       - name: Checker-skeleton smoke tests
         run: lake env lean lean/Tests/CheckSkeleton.lean
 
+      # Init obligation (M3.4).
+      - name: Init-obligation smoke tests
+        run: lake env lean lean/Tests/CheckInit.lean
+
       # Roadmap §2 rule 5: main never carries an undocumented unproved goal.
       # Word-boundary match so `sorryAx` in prose does not trip it.
       - name: Reject 'sorry' in the trusted tree
