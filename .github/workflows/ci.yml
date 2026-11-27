@@ -145,6 +145,10 @@ jobs:
       - name: Safety-obligation smoke tests
         run: lake env lean lean/Tests/CheckSafety.lean
 
+      # Golden accepted certificate and end-to-end check_sound (M3.9).
+      - name: Golden accept
+        run: lake env lean lean/Tests/Golden.lean
+
       # Roadmap §2 rule 5: main never carries an undocumented unproved goal.
       # Word-boundary match so `sorryAx` in prose does not trip it.
       - name: Reject 'sorry' in the trusted tree
@@ -155,9 +159,9 @@ jobs:
           fi
           echo "No unproved goals in lean/."
 
-      # M1/M2/F1 audit: every trusted theorem must be [propext, Quot.sound] or
+      # M1/M2/F1/M3.7 audit: every trusted theorem must be [propext, Quot.sound] or
       # smaller. Classical.choice and sorryAx are failures, not warnings.
-      - name: Axiom audit (M1/M2/F1 footprint)
+      - name: Axiom audit (M1/M2/F1/M3.7 footprint)
         run: |
           out=$(lake env lean lean/CertCore/Audit.lean)
           echo "$out"

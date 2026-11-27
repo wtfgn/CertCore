@@ -5,7 +5,7 @@ Precision is purchasable with certificate bytes, at a fixed trusted computing ba
 
 | | |
 |---|---|
-| Status | **M3 — checker and T5 (in progress).** M2 is merged; M3.1–M3.6 add the certificate type, typed diagnostic, checker skeleton, lookup, shape validation and the init/edge/safety obligations. M3.7 proves T5 (`check_sound`, with `D.P (State.init p)` as the base-case premise). M3.8 audit and M3.9 golden accept remain. |
+| Status | **M3 — checker and T5 complete.** M2 is merged; M3.1–M3.6 add the certificate type, typed diagnostic, checker skeleton, lookup, shape validation and the init/edge/safety obligations. M3.7 proves T5 (`check_sound`, with `D.P (State.init p)` as the base-case premise), M3.8 audits it, and M3.9 proves a golden certificate accepted end-to-end. M4 is next. |
 | Trusted core | Lean 4 (`lean/CertCore/`), no Mathlib |
 | Untrusted | Haskell analyzer (M5), Python experiment harness (M10) |
 | Interface | JSON certificates, `docs/certificate-v1.md` |
@@ -30,7 +30,7 @@ Build completed successfully.
 $ lake exe certcore
 certcore 0.1.0 (M2 interval domain; checker not implemented yet)
 
-$ lake env lean lean/CertCore/Audit.lean    # M1/M2/F1–F4 axiom audit; every line [propext, Quot.sound] or smaller
+$ lake env lean lean/CertCore/Audit.lean    # trusted axiom audit incl. check_sound; every line [propext, Quot.sound] or smaller
 ```
 
 ## Layout
@@ -46,8 +46,8 @@ $ lake env lean lean/CertCore/Audit.lean    # M1/M2/F1–F4 axiom audit; every l
 | `lean/CertCore/Domain/IntervalInstance.lean` | assembled `CertDomain` instance: support-restricted `evalExprAbsOn`/`assignAbsOn`, `ble`/`top`/`join`/`transfer`, `entails`, `initOf`, `P_step` (M2.8/F1/F3/F6) | **yes** |
 | `lean/CertCore/Cert.lean` | certificate type (M3.1), total JSON decoder (M4) | **yes** |
 | `lean/CertCore/Check.lean` | three obligation families, typed diagnostic | **yes** (M3) |
-| `lean/CertCore/Proofs.lean` | theorem inventory T1–T10 | **yes** |
-| `lean/CertCore/Audit.lean` | `#print axioms` for M1/M2/F1–F4 trusted lemmas; CI fails on `Classical.choice`/`sorryAx`; `check_sound` at M3.8 | **yes** |
+| `lean/CertCore/Proofs.lean` | T5 checker-soundness proof | **yes** |
+| `lean/CertCore/Audit.lean` | `#print axioms` for the trusted lemmas including `check_sound`; CI fails on `Classical.choice`/`sorryAx` | **yes** |
 | `haskell/` | fixpoint engine, widening, certificate emitter | no (M5) |
 | `examples/` | `.imp` benchmark programs | no (M1.11, M10.1) |
 | `bench/` | harness, mutation fuzzer, plotting | no (M10) |
@@ -107,6 +107,7 @@ $ lake env lean lean/Tests/CheckSkeleton.lean     # checker lookup/shape checks 
 $ lake env lean lean/Tests/CheckInit.lean         # init-obligation checks (M3.4)
 $ lake env lean lean/Tests/CheckEdges.lean        # edge-obligation checks (M3.5)
 $ lake env lean lean/Tests/CheckSafety.lean       # safety-obligation checks (M3.6)
+$ lake env lean lean/Tests/Golden.lean            # golden accept + check_sound (M3.9)
 $ grep -rnE '\bsorry\b' lean --include='*.lean'  # must print nothing
-$ lake env lean lean/CertCore/Audit.lean         # M1/M2/F1–F4 footprint; CI fails on Classical.choice/sorryAx
+$ lake env lean lean/CertCore/Audit.lean         # trusted footprint incl. check_sound; CI fails on Classical.choice/sorryAx
 ```

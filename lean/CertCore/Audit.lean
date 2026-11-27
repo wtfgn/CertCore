@@ -1,4 +1,5 @@
 import CertCore.Domain.IntervalInstance
+import CertCore.Proofs
 
 /-!
 # `CertCore.Audit` — trusted
@@ -11,9 +12,9 @@ Every line should be `[propext, Quot.sound]` or strictly smaller. `Classical.cho
 or `sorryAx` appearing is a failure: CI runs this script and fails on either.
 
 M1 (semantics, T1/T2, the compiler/bridge), M2 (the interval domain and its T4
-fields), and F1 (the checker interface: `initOf`/`init_sound`,
-`entails`/`entails_sound`, `P_step`) are all listed below. M3.8 adds
-`check_sound`; M11.4 keeps this comparison as a CI gate.
+fields), F1 (the checker interface: `initOf`/`init_sound`,
+`entails`/`entails_sound`, `P_step`), and M3.7 (`check_sound`) are all listed
+below. M11.4 keeps this comparison as a CI gate.
 -/
 
 namespace CertCore
@@ -68,5 +69,9 @@ namespace CertCore
 #print axioms Interval.POn_init
 #print axioms Interval.POn_step
 #print axioms Interval.intervalDomain
+
+/-! ## M3.7: T5 checker soundness -/
+
+#print axioms check_sound
 
 end CertCore
